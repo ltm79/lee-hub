@@ -879,7 +879,8 @@ const FILE_EXTENSIONS = new Set([
   "txt",
   "zip",
 ]);
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_CHUNK_CHARS = 3_000_000;
 
 function libraryName(value: unknown, fallback = ""): string | null {
   if (typeof value !== "string") return fallback ? fallback : null;
@@ -894,15 +895,21 @@ function fileExtension(name: string): string {
   return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
 }
 
-function decodeFile(value: unknown): { content: string; sizeBytes: number } | null {
+function decodeChunk(value: unknown, allowPadding: boolean): string | null {
   if (typeof value !== "string") return null;
   const content = value.replace(/\s/g, "");
-  if (!content || content.length > Math.ceil((MAX_FILE_BYTES * 4) / 3) + 8) return null;
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(content)) return null;
+  if (!content || content.length > MAX_CHUNK_CHARS) return null;
+  if (allowPadding) {
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(content)) return null;
+  } else if (!/^[A-Za-z0-9+/]+$/.test(content) || content.length % 4 !== 0) {
+    return null;
+  }
+  return content;
+}
+
+function base64Size(content: string): number {
   const padding = content.endsWith("==") ? 2 : content.endsWith("=") ? 1 : 0;
-  const sizeBytes = Math.floor((content.length * 3) / 4) - padding;
-  if (sizeBytes <= 0 || sizeBytes > MAX_FILE_BYTES) return null;
-  return { content, sizeBytes };
+  return Math.floor((content.length * 3) / 4) - padding;
 }
 
 async function requireReady(userId: string) {
@@ -953,6 +960,7 @@ export const listLibrary = createServerFn({ method: "GET" })
     const rows = await gate.db<{ id: string; kind: string; name: string; size_bytes: unknown }>`
       select id, kind, name, size_bytes from library_nodes
       where parent_id is not distinct from ${parent.parentId}
+        and (kind = 'folder' or coalesce(size_bytes, 0) > 0)
       order by case when kind = 'folder' then 0 else 1 end, lower(name)
     `;
     return { ok: true, nodes: rows.flatMap((row) => {
@@ -983,7 +991,16 @@ export const createLibraryFolder = createServerFn({ method: "POST" })
 
 export const uploadLibraryFile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data: { parentId?: string; name?: string; content?: string }) => data)
+  .validator(
+    (data: {
+      id?: string;
+      parentId?: string;
+      name?: string;
+      content?: string;
+      offset?: number;
+      done?: boolean;
+    }) => data,
+  )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
     if (!gate.ok) return gate;
@@ -993,16 +1010,57 @@ export const uploadLibraryFile = createServerFn({ method: "POST" })
     if (!FILE_EXTENSIONS.has(extension)) {
       return { ok: false, error: "Use a PDF, spreadsheet, document, image, or zip." };
     }
-    const file = decodeFile(data?.content);
-    if (!file) return { ok: false, error: "That file is empty or over 5 MB." };
+    const offset = Number(data?.offset);
+    if (!Number.isInteger(offset) || offset < 0) return { ok: false, error: "That file could not be saved." };
+    const done = data?.done === true;
+    const chunk = decodeChunk(data?.content, done);
+    if (!chunk) return { ok: false, error: "That file could not be saved." };
+    const id = typeof data?.id === "string" ? data.id.trim().slice(0, 80) : "";
+    if (!id) return { ok: false, error: "That file could not be saved." };
     const parent = await folderParent(gate.db, typeof data?.parentId === "string" ? data.parentId.trim().slice(0, 80) : "");
     if (!parent.ok) return parent;
-    if (await nameTaken(gate.db, parent.parentId, name)) {
-      return { ok: false, error: "Something in this folder already uses that name." };
+
+    if (offset === 0) {
+      await gate.db`
+        delete from library_nodes
+        where parent_id is not distinct from ${parent.parentId}
+          and kind = 'file'
+          and lower(name) = lower(${name})
+          and coalesce(size_bytes, 0) = 0
+      `;
+      if (await nameTaken(gate.db, parent.parentId, name)) {
+        return { ok: false, error: "Something in this folder already uses that name." };
+      }
+      await gate.db`
+        insert into library_nodes (id, parent_id, kind, name, mime, size_bytes, content)
+        values (${id}, ${parent.parentId}, 'file', ${name}, ${extension}, 0, ${chunk})
+      `;
+    } else {
+      const updated = await gate.db<{ id: string }>`
+        update library_nodes
+        set content = content || ${chunk}
+        where id = ${id}
+          and kind = 'file'
+          and coalesce(size_bytes, 0) = 0
+          and length(content) = ${offset}
+        returning id
+      `;
+      if (!updated[0]) return { ok: false, error: "That upload was interrupted. Try the file again." };
+    }
+
+    if (!done) return { ok: true };
+
+    const stored = await gate.db<{ content: string | null }>`
+      select content from library_nodes where id = ${id} and kind = 'file'
+    `;
+    const content = stored[0]?.content ?? "";
+    const sizeBytes = base64Size(content);
+    if (sizeBytes <= 0 || sizeBytes > MAX_FILE_BYTES) {
+      await gate.db`delete from library_nodes where id = ${id} and coalesce(size_bytes, 0) = 0`;
+      return { ok: false, error: "That file is empty or over 20 MB." };
     }
     await gate.db`
-      insert into library_nodes (id, parent_id, kind, name, mime, size_bytes, content)
-      values (${crypto.randomUUID()}, ${parent.parentId}, 'file', ${name}, ${extension}, ${file.sizeBytes}, ${file.content})
+      update library_nodes set size_bytes = ${sizeBytes} where id = ${id}
     `;
     return { ok: true };
   });
@@ -1021,20 +1079,39 @@ export const deleteLibraryNode = createServerFn({ method: "POST" })
 
 export const downloadLibraryFile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((data: { id?: string } | undefined) => ({
+  .validator((data: { id?: string; offset?: number } | undefined) => ({
     id: typeof data?.id === "string" ? data.id.trim().slice(0, 80) : "",
+    offset: typeof data?.offset === "number" && Number.isFinite(data.offset) ? Math.max(0, Math.floor(data.offset)) : 0,
   }))
-  .handler(async ({ context, data }): Promise<{ ok: true; name: string; content: string } | { ok: false; error: string }> => {
-    const gate = await requireReady(context.userId);
-    if (!gate.ok) return gate;
-    if (!data.id) return { ok: false, error: "Missing file." };
-    const rows = await gate.db<{ name: string; content: string | null }>`
-      select name, content from library_nodes where id = ${data.id} and kind = 'file'
-    `;
-    const row = rows[0];
-    if (!row?.content) return { ok: false, error: "That file is not there." };
-    return { ok: true, name: row.name, content: row.content };
-  });
+  .handler(
+    async ({
+      context,
+      data,
+    }): Promise<
+      { ok: true; name: string; content: string; offset: number; total: number } | { ok: false; error: string }
+    > => {
+      const gate = await requireReady(context.userId);
+      if (!gate.ok) return gate;
+      if (!data.id) return { ok: false, error: "Missing file." };
+      const rows = await gate.db<{ name: string; content: string | null; total: unknown }>`
+        select
+          name,
+          substring(content from ${data.offset + 1} for ${MAX_CHUNK_CHARS}) as content,
+          length(content)::int as total
+        from library_nodes
+        where id = ${data.id} and kind = 'file' and coalesce(size_bytes, 0) > 0
+      `;
+      const row = rows[0];
+      if (!row?.content && data.offset === 0) return { ok: false, error: "That file is not there." };
+      return {
+        ok: true,
+        name: row?.name ?? "file",
+        content: row?.content ?? "",
+        offset: data.offset,
+        total: num(row?.total),
+      };
+    },
+  );
 
 export type EconomyItem = {
   label: string;
