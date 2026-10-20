@@ -71,6 +71,7 @@ export type PortalReady = {
     title: string;
     name: string;
     email: string;
+    deals: boolean;
   };
   categories: Category[];
   links: DeskLink[];
@@ -94,6 +95,7 @@ export type AdminPerson = {
   office: string;
   agentIds: string[];
   role: MemberRole | null;
+  deals: boolean;
   active: boolean;
   pending: boolean;
   hasPassword: boolean;
