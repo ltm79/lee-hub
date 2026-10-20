@@ -98,14 +98,12 @@ function PropertyBlock({
           label="Street address"
           value={read(answers, "address")}
           onChange={(value) => set("address", value)}
-          placeholder="1400 E Walnut Ave"
         />
         <Field
           name="city"
           label="City, state, ZIP"
           value={read(answers, "city")}
           onChange={(value) => set("city", value)}
-          placeholder="Commerce, CA 90040"
         />
         {showType ? (
           <Field
