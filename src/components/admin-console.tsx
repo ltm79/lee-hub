@@ -544,57 +544,121 @@ function PeoplePanel({
   onReset: (person: AdminPerson) => void;
   onRun: (action: () => Promise<ActionResult>, success: string) => Promise<boolean>;
 }) {
+  const [officeFilter, setOfficeFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [sort, setSort] = useState("name");
+  const shown = people
+    .filter((person) => {
+      if (officeFilter === "all") return true;
+      if (officeFilter === "none") return !person.office;
+      return person.office === officeFilter;
+    })
+    .filter((person) => (roleFilter === "all" ? true : person.role === roleFilter))
+    .slice()
+    .sort((a, b) => {
+      const byName = a.name.localeCompare(b.name);
+      if (sort === "office") return (a.office || "\uffff").localeCompare(b.office || "\uffff") || byName;
+      if (sort === "role") {
+        const rank = (role: MemberRole | null) => (role === "admin" ? 0 : role === "staff" ? 1 : role === "agent" ? 2 : 3);
+        return rank(a.role) - rank(b.role) || byName;
+      }
+      return byName;
+    });
+
   return (
-    <ul className="mt-8 flex flex-col gap-3">
-      {people.map((person) => (
-        <li
-          key={person.userId}
-          className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 transition duration-200 ease-smooth-out hover:border-crimson sm:flex-row sm:items-center"
+    <div className="mt-8">
+      <div className="flex flex-wrap gap-2">
+        <select
+          aria-label="Filter by office"
+          value={officeFilter}
+          onChange={(event) => setOfficeFilter(event.target.value)}
+          className="h-10 rounded-sm border border-line bg-surface px-3 text-sm"
         >
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">{person.name}</p>
-            <p className="truncate text-sm text-muted">{person.email}</p>
-            <p className="mt-1 text-sm text-faint">
-              {person.pending
-                ? "Waiting for access"
-                : `${roleLabel(person.role)}${person.office ? ` · ${person.office}` : ""}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
-              {person.hasPassword ? "" : " · No password yet"}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {person.pending ? (
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void onRun(
-                    () =>
-                      updateMember({
-                        data: {
-                          userId: person.userId,
-                          role: "agent",
-                          active: true,
-                          title: person.title,
-                          office: person.office,
-                        },
-                      }),
-                    `${person.name} can open Lee Hub.`,
-                  )
-                }
-              >
-                Approve
-              </Button>
-            ) : (
-              <Button variant="secondary" onClick={() => onEdit(person)}>
-                Edit
-              </Button>
-            )}
-            <Button variant="ghost" onClick={() => onReset(person)}>
-              Password
-            </Button>
-          </div>
-        </li>
-      ))}
-    </ul>
+          <option value="all">All offices</option>
+          {MEMBER_OFFICES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+          <option value="none">No office</option>
+        </select>
+        <select
+          aria-label="Filter by role"
+          value={roleFilter}
+          onChange={(event) => setRoleFilter(event.target.value)}
+          className="h-10 rounded-sm border border-line bg-surface px-3 text-sm"
+        >
+          <option value="all">All roles</option>
+          <option value="agent">Agent</option>
+          <option value="staff">Staff</option>
+          <option value="admin">Administrator</option>
+        </select>
+        <select
+          aria-label="Sort logins"
+          value={sort}
+          onChange={(event) => setSort(event.target.value)}
+          className="h-10 rounded-sm border border-line bg-surface px-3 text-sm"
+        >
+          <option value="name">Sort by name</option>
+          <option value="office">Sort by office</option>
+          <option value="role">Sort by role</option>
+        </select>
+      </div>
+      {shown.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">No logins match that filter.</p>
+      ) : (
+        <ul className="mt-4 flex flex-col gap-3">
+          {shown.map((person) => (
+            <li
+              key={person.userId}
+              className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 transition duration-200 ease-smooth-out hover:border-crimson sm:flex-row sm:items-center"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{person.name}</p>
+                <p className="truncate text-sm text-muted">{person.email}</p>
+                <p className="mt-1 text-sm text-faint">
+                  {person.pending
+                    ? "Waiting for access"
+                    : `${roleLabel(person.role)}${person.office ? ` · ${person.office}` : ""}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
+                  {person.hasPassword ? "" : " · No password yet"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {person.pending ? (
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void onRun(
+                        () =>
+                          updateMember({
+                            data: {
+                              userId: person.userId,
+                              role: "agent",
+                              active: true,
+                              title: person.title,
+                              office: person.office,
+                            },
+                          }),
+                        `${person.name} can open Lee Hub.`,
+                      )
+                    }
+                  >
+                    Approve
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => onEdit(person)}>
+                    Edit
+                  </Button>
+                )}
+                <Button variant="ghost" onClick={() => onReset(person)}>
+                  Password
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
