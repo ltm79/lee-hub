@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Answers, Kind } from "@/lib/desk/types";
-import { dollars, leaseMath, saleCommission, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
+import { dollars, leaseMath, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
 import { listInternalUsers, type InternalUser } from "@/lib/desk/people";
 import { FilesPanel } from "@/components/desk/files-panel";
 import { Card, Checks, Choice, DateField, Field, read, SecondaryButton } from "@/components/desk/ui";
@@ -823,32 +823,11 @@ export function VoucherSection({
   }
 
   if (section === "money") {
-    const sale = saleCommission(answers);
     return (
       <div className="grid gap-4">
         <Card title="Funds received">
           <FundsBlock answers={answers} set={set} />
         </Card>
-        {kind === "sale" ? (
-          <Card title="Commission math">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field
-                name="saleBase"
-                label="Consideration in the formula"
-                value={read(answers, "saleBase")}
-                onChange={(value) => set("saleBase", value)}
-                placeholder={answers.price || "Purchase price"}
-                inputMode="decimal"
-                format="money"
-              />
-              <Field name="salePct" label="Commission %" value={read(answers, "salePct")} onChange={(value) => set("salePct", value)} inputMode="decimal" />
-              <div>
-                <p className="text-sm text-ink-soft">Commission</p>
-                <p className="mt-2 font-serif text-2xl tabular-nums">{sale.ready ? dollars(sale.line) : "—"}</p>
-              </div>
-            </div>
-          </Card>
-        ) : null}
         <Card title="Internal distribution">
           <SplitsBlock answers={answers} set={set} />
         </Card>
