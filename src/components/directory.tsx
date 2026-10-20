@@ -1,4 +1,4 @@
-import { ArrowUpRight, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { ServiceIcon } from "@/components/icons";
 import { hubGroups, toneFor } from "@/components/shell";
 import { LocalConditions } from "@/components/local-conditions";
@@ -34,29 +34,27 @@ function Tile({
 }) {
   const color = toneFor(tone);
   return (
-    <article className="group relative overflow-hidden rounded-lg border border-line bg-surface shadow-card transition duration-200 ease-smooth-out motion-safe:hover:-translate-y-0.5 hover:border-teal hover:shadow-lift">
+    <article className="group relative overflow-hidden rounded-lg border border-line bg-surface transition duration-200 ease-smooth-out hover:border-teal">
       <span className={`absolute inset-y-0 left-0 w-1 ${color.bar}`} aria-hidden="true" />
       <a
         href={link.url}
         {...(link.url.startsWith("/") ? {} : { target: "_blank", rel: "noreferrer noopener" })}
-        className="block rounded-lg p-4 pr-14 pl-5"
+        className="flex items-center gap-3 rounded-lg py-2.5 pr-11 pl-4"
       >
-        <span className={`grid size-10 place-items-center rounded-sm ${color.wash} ${color.ink} transition duration-200 ease-smooth-out motion-safe:group-hover:scale-105`}>
-          <ServiceIcon name={link.icon} className="size-5" />
+        <span className={`grid size-8 shrink-0 place-items-center rounded-sm ${color.wash} ${color.ink}`}>
+          <ServiceIcon name={link.icon} className="size-4" />
         </span>
-        <h3 className="mt-4 font-semibold text-ink">{link.name}</h3>
-        {link.blurb ? <p className="mt-1 text-sm text-muted">{link.blurb}</p> : null}
-        <p className="mt-4 flex items-center justify-between gap-3 text-sm text-faint">
-          <span className="min-w-0 truncate">{link.hint || (link.url.startsWith("/") ? "Opens in Lee Hub" : "Opens in a new tab")}</span>
-          <ArrowUpRight className="size-4 shrink-0 text-teal transition duration-200 ease-smooth-out motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
-        </p>
+        <span className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold leading-tight text-ink">{link.name}</h3>
+          {link.blurb ? <p className="mt-0.5 truncate text-sm text-muted">{link.blurb}</p> : null}
+        </span>
       </a>
       <button
         type="button"
         aria-pressed={pinned}
         aria-label={pinned ? `Unpin ${link.name}` : `Pin ${link.name}`}
         onClick={() => onToggle(link.id)}
-        className="absolute top-3 right-3 grid size-11 place-items-center rounded-sm text-faint transition duration-150 ease-smooth-out hover:bg-blush hover:text-crimson motion-safe:active:scale-[0.96]"
+        className="absolute top-1/2 right-1 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-faint transition duration-150 ease-smooth-out hover:bg-blush hover:text-crimson"
       >
         <Star
           className={pinned ? "size-4 fill-crimson text-crimson transition duration-200 ease-smooth-out" : "size-4 transition duration-200 ease-smooth-out"}
@@ -114,7 +112,7 @@ export function Directory({
             <span className="h-px w-6 bg-crimson" />
             Pinned
           </h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {pinned.map((link) => (
               <Tile key={link.id} link={link} pinned tone={tones.get("pinned") ?? 0} onToggle={onToggle} />
             ))}
@@ -135,7 +133,7 @@ export function Directory({
               {category.name}
             </h2>
             {items.length > 0 ? (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map((link) => (
                   <Tile
                     key={link.id}
