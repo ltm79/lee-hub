@@ -16,7 +16,7 @@ import type { Answers, Attachment, Kind, Packet } from "@/lib/desk/types";
 type DeskState = {
   packets: Packet[];
   defaultEmail: string;
-  createPacket: (kind: Kind, answers?: Answers) => string;
+  createPacket: (kind: Kind, answers?: Answers, ownerId?: string) => string;
   updateAnswer: (id: string, key: string, value: string) => void;
   addFiles: (id: string, files: Attachment[]) => void;
   removeFile: (id: string, fileId: string) => void;
@@ -154,7 +154,7 @@ export const useDesk = create<DeskState>()((set, get) => ({
   packets: [],
   defaultEmail: "",
   saveError: "",
-  createPacket: (kind, answers = {}) => {
+  createPacket: (kind, answers = {}, ownerId) => {
     const id = crypto.randomUUID();
     const now = Date.now();
     const packet: Packet = {
@@ -165,6 +165,7 @@ export const useDesk = create<DeskState>()((set, get) => ({
       updatedAt: now,
       answers,
       files: [],
+      ownerId,
     };
     set((state) => ({ packets: [packet, ...state.packets] }));
     void saveDeskPacket({ data: packet }).then(saved).catch(remember);
