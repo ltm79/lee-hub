@@ -3,6 +3,7 @@ import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authClient, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { officeStatus } from "@/lib/portal.functions";
+import { createFirstAdmin, setupStatus } from "@/lib/first-admin";
 import { rememberSessionToken } from "@/lib/remember-session";
 import { LeeLogo } from "@/components/mark";
 import { Button, TextField } from "@/components/ui";
@@ -20,6 +21,7 @@ function messageOf(error: unknown) {
 function LoginPage() {
   const { user, isPending } = useCurrentUserState();
   const [officeName, setOfficeName] = useState("Lee & Associates");
+  const [setup, setSetup] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -30,12 +32,19 @@ function LoginPage() {
       .catch(() => {
         if (!cancel) setOfficeName("Lee & Associates");
       });
+    setupStatus()
+      .then((next) => {
+        if (!cancel) setSetup(next.needed);
+      })
+      .catch(() => {
+        if (!cancel) setSetup(false);
+      });
     return () => {
       cancel = true;
     };
   }, []);
 
-  if (isPending) return <DeskLoading />;
+  if (isPending || setup === null) return <DeskLoading />;
   if (user) return <Navigate to="/" />;
 
   return (
@@ -53,10 +62,65 @@ function LoginPage() {
       </section>
       <section className="flex items-center px-6 py-10 md:px-12">
         <div className="w-full max-w-md">
-          <SignInForm officeName={officeName} />
+          {setup ? <FirstAdminForm /> : <SignInForm officeName={officeName} />}
         </div>
       </section>
     </main>
+  );
+}
+
+function FirstAdminForm() {
+  const navigate = useNavigate();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm font-medium text-crimson">First time only</p>
+      <h2 className="text-3xl font-semibold">Create the administrator</h2>
+      <p className="text-muted">
+        This office has no logins yet. The account you create here is the administrator. After that, this page goes away.
+      </p>
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError(null);
+          const created = await createFirstAdmin({ data: { name, email, password } });
+          if (!created.ok) {
+            setBusy(false);
+            setError(created.error);
+            return;
+          }
+          const result = await authClient.signIn.email({ email, password });
+          if (result.error || !result.data) {
+            setBusy(false);
+            setError(messageOf(result.error) || "Account created. Sign in with that email and password.");
+            return;
+          }
+          rememberSessionToken(result.data.token);
+          await authClient.getSession();
+          setBusy(false);
+          await navigate({ to: "/" });
+        }}
+      >
+        <TextField id="name" label="Your name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required />
+        <TextField id="email" label="Work email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required />
+        <TextField id="password" label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
+        {error ? (
+          <p className="text-sm text-deep" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" disabled={busy}>
+          {busy ? "Creating\u2026" : "Create administrator"}
+        </Button>
+      </form>
+    </div>
   );
 }
 
@@ -98,7 +162,7 @@ function SignInForm({ officeName }: { officeName: string }) {
           </p>
         ) : null}
         <Button type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Enter Lee Hub"}
+          {busy ? "Signing in\u2026" : "Enter Lee Hub"}
         </Button>
       </form>
       <div className="flex items-center gap-3 text-sm text-faint">
