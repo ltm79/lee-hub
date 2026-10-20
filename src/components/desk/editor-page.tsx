@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Download, FolderArchive, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, FolderArchive, Mail } from "lucide-react";
 import { checkedWithoutFile, packetFiles } from "@/lib/desk/docs";
 import { blockers, KIND_META, streetAddress, type Packet } from "@/lib/desk/types";
 import { downloadVoucher } from "@/lib/desk/fill";
@@ -309,6 +309,21 @@ export function EditorPage({ id }: { id: string }) {
           answers={packet.answers}
           set={(key, value) => updateAnswer(packet.id, key, value)}
         />
+        {sections[sections.findIndex((item) => item.id === active) + 1] ? (
+          <div className="mt-6 flex justify-end">
+            <PrimaryButton
+              onClick={() => {
+                const next = sections[sections.findIndex((item) => item.id === active) + 1];
+                if (!next) return;
+                setSection(next.id);
+                document.getElementById("voucher-form")?.scrollIntoView({ block: "start" });
+              }}
+            >
+              Next: {sections[sections.findIndex((item) => item.id === active) + 1]?.label}
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </PrimaryButton>
+          </div>
+        ) : null}
         {!viewOnly && active === sections[sections.length - 1]?.id ? (
           <fieldset className="mt-4">
             <legend className="text-sm text-ink-soft">Email the voucher to</legend>
