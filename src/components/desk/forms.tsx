@@ -341,6 +341,13 @@ function ExternalBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
   );
 }
 
+let peopleRequest: Promise<InternalUser[]> | null = null;
+
+function loadPeople() {
+  peopleRequest ??= listInternalUsers().catch(() => []);
+  return peopleRequest;
+}
+
 function PersonPick({
   name,
   label,
@@ -355,54 +362,77 @@ function PersonPick({
   onOffice?: (office: string) => void;
 }) {
   const [people, setPeople] = useState<InternalUser[]>([]);
-  const [custom, setCustom] = useState(false);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     let stop = false;
-    void listInternalUsers()
-      .then((rows) => {
-        if (!stop) setPeople(rows);
-      })
-      .catch(() => {
-        if (!stop) setPeople([]);
-      });
+    void loadPeople().then((rows) => {
+      if (!stop) setPeople(rows);
+    });
     return () => {
       stop = true;
     };
   }, []);
-  const selected = people.find((person) => person.name === value);
-  const typing = custom || (Boolean(value) && people.length > 0 && !selected);
+  const query = value.trim().toLowerCase();
+  const matches = query
+    ? people.filter((person) => person.name.toLowerCase().includes(query)).slice(0, 8)
+    : [];
+  const exactOnly = matches.length === 1 && matches[0]?.name.toLowerCase() === query;
+
+  function choose(person: InternalUser) {
+    onChange(person.name);
+    if (onOffice) onOffice(person.office);
+    setOpen(false);
+  }
+
   return (
-    <div>
+    <div className="relative">
       <label className="block text-sm text-ink-soft" htmlFor={`pick-${name}`}>
         {label}
       </label>
-      <select
+      <input
         id={`pick-${name}`}
-        value={typing ? "__custom" : (selected?.userId ?? "")}
+        value={value}
+        autoComplete="off"
+        placeholder="Start typing a name"
+        onFocus={() => setOpen(true)}
         onChange={(event) => {
-          const next = event.target.value;
-          if (next === "__custom") {
-            setCustom(true);
-            onChange("");
-            return;
-          }
-          setCustom(false);
-          const person = people.find((item) => item.userId === next);
-          onChange(person?.name ?? "");
-          if (person && onOffice) onOffice(person.office);
+          onChange(event.target.value);
+          setOpen(true);
         }}
-        className="mt-1 h-11 w-full rounded-md border border-line bg-card px-3 text-sm text-ink focus-visible:border-red focus-visible:outline-none"
-      >
-        <option value="">Choose a person</option>
-        {people.map((person) => (
-          <option key={person.userId} value={person.userId}>
-            {person.name}
-            {person.office ? ` · ${person.office}` : ""}
-          </option>
-        ))}
-        <option value="__custom">Type a name</option>
-      </select>
-      {typing ? <Field className="mt-2" name={`${name}-custom`} label="Name" value={value} onChange={onChange} /> : null}
+        onBlur={() => {
+          window.setTimeout(() => setOpen(false), 120);
+          const exact = people.find((person) => person.name.toLowerCase() === value.trim().toLowerCase());
+          if (exact) choose(exact);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && open && matches[0] && !exactOnly) {
+            event.preventDefault();
+            choose(matches[0]);
+          }
+        }}
+        className="mt-1 h-11 w-full rounded-md border border-line bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none"
+      />
+      {open && matches.length > 0 && !exactOnly ? (
+        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-line bg-card shadow-sm">
+          {matches.map((person) => (
+            <li key={person.userId}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  choose(person);
+                }}
+                className="flex min-h-11 w-full items-center px-3 text-left text-sm hover:bg-paper"
+              >
+                <span className="min-w-0 truncate">
+                  {person.name}
+                  {person.office ? <span className="text-muted"> · {person.office}</span> : null}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
