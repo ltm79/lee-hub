@@ -76,17 +76,24 @@ export const notifyStaff = createServerFn({ method: "POST" })
       "The voucher file is not attached. Open it in the portal to review and manage it:",
       link,
     ].join("\n");
-    const key = process.env.RESEND_API_KEY?.trim();
+    const key = process.env.SMTP2GO_API_KEY?.trim();
     const from = process.env.EMAIL_FROM?.trim();
     if (key && from) {
-      const response = await fetch("https://api.resend.com/emails", {
+      const response = await fetch("https://api.smtp2go.com/v3/email/send", {
         method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to, subject, text: body }),
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+          "X-Smtp2go-Api-Key": key,
+        },
+        body: JSON.stringify({ sender: from, to, subject, text_body: body }),
       });
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(detail.slice(0, 180) || "The notice could not be emailed.");
+      const payload = (await response.json().catch(() => null)) as {
+        data?: { failed?: number; failures?: string[] };
+      } | null;
+      if (!response.ok || (payload?.data?.failed ?? 0) > 0) {
+        const detail = payload?.data?.failures?.join(" ") || "The notice could not be emailed.";
+        throw new Error(detail.slice(0, 180));
       }
       return { mode: "sent", to, subject, body };
     }
