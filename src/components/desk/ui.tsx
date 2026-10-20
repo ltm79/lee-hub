@@ -151,15 +151,21 @@ export function Choice({
   value,
   onChange,
   options,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  required?: boolean;
 }) {
+  const empty = required && !value;
   return (
     <fieldset>
-      <legend className="text-sm text-ink-soft">{label}</legend>
+      <legend className="text-sm text-ink-soft">
+        {label}
+        {required ? <span className="ml-1.5 font-semibold text-red">Required</span> : null}
+      </legend>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((option) => {
           const selected = value === option.value;
@@ -172,7 +178,9 @@ export function Choice({
               className={`h-11 rounded-md border px-3 text-sm font-medium ${
                 selected
                   ? "border-red bg-red-soft text-red-deep"
-                  : "border-line bg-card text-ink hover:border-line-strong"
+                  : empty
+                    ? "border-red bg-red-soft text-ink hover:border-line-strong"
+                    : "border-line bg-card text-ink hover:border-line-strong"
               }`}
             >
               {option.label}
