@@ -82,11 +82,15 @@ export type PortalSnapshot =
   | { status: "pending"; name: string; email: string }
   | { status: "disabled"; name: string; email: string };
 
+export const MEMBER_OFFICES = ["LA Central", "City of Industry"] as const;
+export type MemberOffice = (typeof MEMBER_OFFICES)[number];
+
 export type AdminPerson = {
   userId: string;
   name: string;
   email: string;
   title: string;
+  office: string;
   role: MemberRole | null;
   active: boolean;
   pending: boolean;
