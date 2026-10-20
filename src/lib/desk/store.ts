@@ -4,7 +4,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   deleteDeskFile,
   deleteDeskPacket,
-  fetchDeskFile,
+  downloadDeskFile,
   listDesk,
   saveDeskEmail,
   saveDeskFile,
@@ -138,16 +138,24 @@ function blobToBase64(blob: Blob): Promise<string> {
 async function uploadFile(packetId: string, file: Attachment) {
   const blob = await getBlob(file.id);
   if (!blob) return;
-  await saveDeskFile({
-    data: {
-      packetId,
-      id: file.id,
-      name: file.name,
-      mime: file.type,
-      slot: file.slot,
-      contentBase64: await blobToBase64(blob),
-    },
-  });
+  const chunk = 1_572_864;
+  let part = 0;
+  for (let start = 0; start < blob.size; start += chunk) {
+    const slice = blob.slice(start, Math.min(blob.size, start + chunk));
+    await saveDeskFile({
+      data: {
+        packetId,
+        id: file.id,
+        name: file.name,
+        mime: file.type,
+        slot: file.slot,
+        contentBase64: await blobToBase64(slice),
+        part,
+        done: start + chunk >= blob.size,
+      },
+    });
+    part += 1;
+  }
 }
 
 export const useDesk = create<DeskState>()((set, get) => ({
@@ -305,7 +313,7 @@ async function pullDesk() {
   for (const packet of useDesk.getState().packets) {
     for (const file of packet.files ?? []) {
       if (await getBlob(file.id)) continue;
-      const downloaded = await fetchDeskFile({ data: file.id });
+      const downloaded = await downloadDeskFile(file.id);
       if (!downloaded?.contentBase64) continue;
       const bytes = Uint8Array.from(atob(downloaded.contentBase64), (char) => char.charCodeAt(0));
       await putBlob(packet.id, file.id, new Blob([bytes], { type: downloaded.mime || file.type }));
