@@ -678,6 +678,7 @@ export function VoucherSection({
             <DateField name="closeDate" label="Close of escrow" value={read(answers, "closeDate")} onChange={(value) => set("closeDate", value)} />
             <Choice
               label="Buyer type"
+              required
               value={read(answers, "buyerType")}
               onChange={(value) => set("buyerType", value)}
               options={[
