@@ -212,20 +212,19 @@ export const listRecipients = createServerFn({ method: "GET" })
     if (!me || !me.active) throw new Error("You cannot do that.");
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const rows = await sql<{ user_id: string; name: string; office: string; username: string }>`
-      select user_id, name, office, username
-      from desk_members
-      where role = 'staff' and active = true
-      order by office, name
+    const rows = await sql<{ user_id: string; name: string; office: string; email: string }>`
+      select m.user_id, u.name, coalesce(m.office, '') as office, u.email
+      from members m
+      join "user" u on u.id = m.user_id
+      where m.role = 'staff' and m.active = true and m.deals = true and u.email <> ''
+      order by m.office, u.name
     `;
-    return rows
-      .filter((row) => row.username.includes("@"))
-      .map((row) => ({
-        userId: row.user_id,
-        name: row.name,
-        office: row.office ?? "",
-        email: row.username,
-      }));
+    return rows.map((row) => ({
+      userId: row.user_id,
+      name: row.name,
+      office: row.office ?? "",
+      email: row.email,
+    }));
   });
 
 export const createPerson = createServerFn({ method: "POST" })
