@@ -495,7 +495,7 @@ export const createLogin = createServerFn({ method: "POST" })
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -526,8 +526,28 @@ export const updateMember = createServerFn({ method: "POST" })
       }
     }
 
-    const users = await db<{ id: string }>`select id from "user" where id = ${userId}`;
-    if (!users[0]) return { ok: false, error: "That person no longer exists." };
+    const users = await db<{ id: string; email: string }>`select id, email from "user" where id = ${userId}`;
+    const account = users[0];
+    if (!account) return { ok: false, error: "That person no longer exists." };
+
+    const email = emailOf(data?.email);
+    if (data?.email !== undefined && !email) return { ok: false, error: "Enter a work email." };
+    if (email && email !== account.email.toLowerCase()) {
+      const taken = await db<{ id: string }>`
+        select id from "user" where lower(email) = ${email} and id <> ${userId}
+      `;
+      if (taken[0]) return { ok: false, error: "That email already has a login." };
+      const deskTaken = await db<{ user_id: string }>`
+        select user_id from desk_members where lower(username) = ${email} and user_id <> ${userId}
+      `;
+      if (deskTaken[0]) return { ok: false, error: "That email already has a login." };
+      await db`
+        update "user" set email = ${email}, "updatedAt" = now() where id = ${userId}
+      `;
+      await db`
+        update desk_members set username = ${email} where user_id = ${userId}
+      `;
+    }
 
     await db`
       insert into members (user_id, role, active, title, office)
