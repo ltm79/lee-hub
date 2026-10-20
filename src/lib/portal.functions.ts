@@ -102,7 +102,7 @@ function iconOf(value: unknown): string {
 }
 
 type UserRow = { id: string; name: string; email: string };
-type MemberRow = { role: string; active: unknown; title: string };
+type MemberRow = { role: string; active: unknown; title: string; deals: unknown };
 
 async function readUser(userId: string) {
   const db = await getDb();
@@ -117,13 +117,13 @@ async function ensureMember(userId: string): Promise<
   | { status: "missing" }
   | { status: "pending"; name: string; email: string }
   | { status: "disabled"; name: string; email: string }
-  | { status: "ready"; name: string; email: string; role: MemberRole; title: string }
+  | { status: "ready"; name: string; email: string; role: MemberRole; title: string; deals: boolean }
 > {
   const { db, user } = await readUser(userId);
   if (!user) return { status: "missing" };
 
   const existing = await db<MemberRow>`
-    select role, active, title from members where user_id = ${userId}
+    select role, active, title, deals from members where user_id = ${userId}
   `;
   const member = existing[0];
   if (member) {
@@ -137,6 +137,7 @@ async function ensureMember(userId: string): Promise<
       email: user.email,
       role,
       title: member.title ?? "",
+      deals: flag(member.deals),
     };
   }
 
@@ -153,6 +154,7 @@ async function ensureMember(userId: string): Promise<
     email: user.email,
     role: "admin",
     title: "Administrator",
+    deals: true,
   };
 }
 
@@ -298,6 +300,7 @@ export const loadPortal = createServerFn({ method: "GET" })
         title: access.title,
         name: access.name,
         email: access.email,
+        deals: access.deals,
       },
       categories: categories.map(mapCategory),
       links: visible,
@@ -353,6 +356,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
       office: string | null;
       role: string | null;
       active: unknown;
+      deals: unknown;
       has_password: unknown;
     }>`
       select
@@ -363,6 +367,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         m.office,
         m.role,
         m.active,
+        m.deals,
         exists (
           select 1 from "account" a
           where a."userId" = u.id and a."providerId" = 'credential'
@@ -413,6 +418,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         role,
         active: pending ? false : flag(person.active),
         pending,
+        deals: flag(person.deals),
         hasPassword: flag(person.has_password),
       };
     });
@@ -467,6 +473,7 @@ export const createLogin = createServerFn({ method: "POST" })
       role?: string;
       office?: string;
       agentIds?: string[];
+      deals?: boolean;
     }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
@@ -514,11 +521,12 @@ export const createLogin = createServerFn({ method: "POST" })
     const passwordError = await writePassword(userId, password);
     if (passwordError) return { ok: false, error: passwordError };
 
+    const deals = role === "staff" && Boolean(data?.deals);
     await db`
-      insert into members (user_id, role, active, title, office)
-      values (${userId}, ${role}, true, ${title}, ${office})
+      insert into members (user_id, role, active, title, office, deals)
+      values (${userId}, ${role}, true, ${title}, ${office}, ${deals})
       on conflict (user_id) do update
-      set role = ${role}, active = true, title = ${title}, office = ${office}
+      set role = ${role}, active = true, title = ${title}, office = ${office}, deals = ${deals}
     `;
     await db`
       update desk_members
@@ -532,7 +540,7 @@ export const createLogin = createServerFn({ method: "POST" })
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; agentIds?: string[] }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; agentIds?: string[]; deals?: boolean }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -586,12 +594,13 @@ export const updateMember = createServerFn({ method: "POST" })
       `;
     }
 
+    const deals = role === "staff" && Boolean(data?.deals);
     if (office) {
       await db`
-        insert into members (user_id, role, active, title, office)
-        values (${userId}, ${role}, ${active}, ${title}, ${office})
+        insert into members (user_id, role, active, title, office, deals)
+        values (${userId}, ${role}, ${active}, ${title}, ${office}, ${deals})
         on conflict (user_id) do update
-        set role = ${role}, active = ${active}, title = ${title}, office = ${office}
+        set role = ${role}, active = ${active}, title = ${title}, office = ${office}, deals = ${deals}
       `;
       await db`
         update desk_members
@@ -600,10 +609,10 @@ export const updateMember = createServerFn({ method: "POST" })
       `;
     } else {
       await db`
-        insert into members (user_id, role, active, title)
-        values (${userId}, ${role}, ${active}, ${title})
+        insert into members (user_id, role, active, title, deals)
+        values (${userId}, ${role}, ${active}, ${title}, ${deals})
         on conflict (user_id) do update
-        set role = ${role}, active = ${active}, title = ${title}
+        set role = ${role}, active = ${active}, title = ${title}, deals = ${deals}
       `;
       await db`
         update desk_members
