@@ -60,6 +60,10 @@ function roleOf(value: unknown): MemberRole | null {
   return value === "admin" || value === "staff" || value === "agent" ? value : null;
 }
 
+function officeOf(value: unknown): "LA Central" | "City of Industry" | null {
+  return value === "LA Central" || value === "City of Industry" ? value : null;
+}
+
 function deskRoleOf(role: MemberRole): "admin" | "staff" | "agent" {
   if (role === "admin") return "admin";
   if (role === "staff") return "staff";
@@ -321,6 +325,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
       name: string;
       email: string;
       title: string | null;
+      office: string | null;
       role: string | null;
       active: unknown;
       has_password: unknown;
@@ -330,6 +335,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         u.name,
         u.email,
         m.title,
+        m.office,
         m.role,
         m.active,
         exists (
@@ -368,6 +374,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         name: person.name,
         email: person.email,
         title: person.title ?? "",
+        office: person.office ?? "",
         role,
         active: pending ? false : flag(person.active),
         pending,
@@ -423,6 +430,7 @@ export const createLogin = createServerFn({ method: "POST" })
       password?: string;
       title?: string;
       role?: string;
+      office?: string;
     }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
@@ -433,9 +441,11 @@ export const createLogin = createServerFn({ method: "POST" })
     const password = text(data?.password);
     const title = clip(text(data?.title), 80);
     const role = roleOf(data?.role) ?? "agent";
+    const office = officeOf(data?.office);
     if (!name) return { ok: false, error: "Add the person's name." };
     if (!email) return { ok: false, error: "Enter a work email." };
     if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
+    if (!office) return { ok: false, error: "Choose LA Central or City of Industry." };
 
     const { db } = gate;
     const existing = await db<{ id: string }>`
@@ -469,14 +479,14 @@ export const createLogin = createServerFn({ method: "POST" })
     if (passwordError) return { ok: false, error: passwordError };
 
     await db`
-      insert into members (user_id, role, active, title)
-      values (${userId}, ${role}, true, ${title})
+      insert into members (user_id, role, active, title, office)
+      values (${userId}, ${role}, true, ${title}, ${office})
       on conflict (user_id) do update
-      set role = ${role}, active = true, title = ${title}
+      set role = ${role}, active = true, title = ${title}, office = ${office}
     `;
     await db`
       update desk_members
-      set role = ${deskRoleOf(role)}, active = true
+      set role = ${deskRoleOf(role)}, office = ${office}, active = true
       where user_id = ${userId}
     `;
     return { ok: true };
@@ -485,7 +495,7 @@ export const createLogin = createServerFn({ method: "POST" })
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -494,6 +504,7 @@ export const updateMember = createServerFn({ method: "POST" })
     const role = roleOf(data?.role);
     const active = Boolean(data?.active);
     const title = clip(text(data?.title), 80);
+    const office = officeOf(data?.office);
     if (!userId || !role) return { ok: false, error: "Choose a person and a role." };
 
     const { db } = gate;
@@ -519,14 +530,19 @@ export const updateMember = createServerFn({ method: "POST" })
     if (!users[0]) return { ok: false, error: "That person no longer exists." };
 
     await db`
-      insert into members (user_id, role, active, title)
-      values (${userId}, ${role}, ${active}, ${title})
+      insert into members (user_id, role, active, title, office)
+      values (${userId}, ${role}, ${active}, ${title}, ${office ?? ""})
       on conflict (user_id) do update
-      set role = ${role}, active = ${active}, title = ${title}
+      set role = ${role},
+          active = ${active},
+          title = ${title},
+          office = case when ${office} is null then members.office else ${office} end
     `;
     await db`
       update desk_members
-      set role = ${deskRoleOf(role)}, active = ${active}
+      set role = ${deskRoleOf(role)},
+          active = ${active},
+          office = case when ${office} is null then desk_members.office else ${office} end
       where user_id = ${userId}
     `;
     if (!active) {
