@@ -34,14 +34,14 @@ function Tile({
 }) {
   const color = toneFor(tone);
   return (
-    <article className="group relative overflow-hidden rounded-lg border border-line bg-surface transition duration-200 ease-smooth-out hover:border-teal">
+    <article className="group relative overflow-hidden rounded-[6px] border border-line bg-surface transition duration-200 ease-smooth-out hover:border-teal">
       <span className={`absolute inset-y-0 left-0 w-1 ${color.bar}`} aria-hidden="true" />
       <a
         href={link.url}
         {...(link.url.startsWith("/") ? {} : { target: "_blank", rel: "noreferrer noopener" })}
-        className="flex items-center gap-3 rounded-lg py-2.5 pr-11 pl-4"
+        className="flex items-center gap-3 rounded-[6px] py-2.5 pr-11 pl-4"
       >
-        <span className={`grid size-8 shrink-0 place-items-center rounded-sm ${color.wash} ${color.ink}`}>
+        <span className={`grid size-8 shrink-0 place-items-center rounded-[6px] ${color.wash} ${color.ink}`}>
           <ServiceIcon name={link.icon} className="size-4" />
         </span>
         <span className="min-w-0 flex-1">
