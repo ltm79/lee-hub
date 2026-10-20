@@ -2,9 +2,9 @@ import type { Attachment } from "@/lib/desk/types";
 import { putBlob } from "@/lib/desk/blobs";
 
 export const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt,.tif,.tiff";
-export const MAX_FILE_BYTES = 12 * 1024 * 1024;
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const MAX_PACKET_FILES = 24;
-export const MAX_PACKET_BYTES = 48 * 1024 * 1024;
+export const MAX_PACKET_BYTES = 80 * 1024 * 1024;
 
 const EXT = /\.(pdf|png|jpe?g|webp|gif|docx?|xlsx?|csv|txt|tiff?)$/i;
 
@@ -43,8 +43,8 @@ function allowed(file: File): boolean {
 export function intakeError(file: File, count: number, bytes: number): string | null {
   if (count >= MAX_PACKET_FILES) return `A voucher holds up to ${MAX_PACKET_FILES} files.`;
   if (file.size <= 0) return `${file.name} is empty.`;
-  if (file.size > MAX_FILE_BYTES) return `${file.name} is over 12 MB.`;
-  if (bytes + file.size > MAX_PACKET_BYTES) return "This voucher is at the 48 MB file limit.";
+  if (file.size > MAX_FILE_BYTES) return `${file.name} is over 20 MB.`;
+  if (bytes + file.size > MAX_PACKET_BYTES) return "This voucher is at the 80 MB file limit.";
   if (!allowed(file)) return `${file.name} needs to be a PDF, image, Word, Excel, or text file.`;
   return null;
 }
