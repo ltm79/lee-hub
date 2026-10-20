@@ -188,7 +188,7 @@ export function MarketLibrary({ canEdit }: { canEdit: boolean }) {
     <div className="mt-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="font-semibold">Market files</h3>
+          <h3 className="font-semibold">Market Research Vault</h3>
           <p className="mt-1 text-sm text-muted">Folders and reports kept for this market.</p>
         </div>
         {canEdit ? (
@@ -220,7 +220,7 @@ export function MarketLibrary({ canEdit }: { canEdit: boolean }) {
             className="rounded-sm px-1.5 py-1 font-medium text-crimson hover:bg-blush"
             onClick={() => setStack([])}
           >
-            Market files
+            Market Research Vault
           </button>
           {stack.map((crumb, index) => (
             <span key={crumb.id} className="flex min-w-0 items-center gap-1">
