@@ -99,7 +99,9 @@ function FirstAdminForm() {
           const result = await authClient.signIn.email({ email, password });
           if (result.error || !result.data) {
             setBusy(false);
-            setError(messageOf(result.error) || "Account created. Sign in with that email and password.");
+            setError(messageOf(result.error) === "Something went wrong. Try again."
+              ? "Your administrator account was saved. Sign in with that same email and password."
+              : messageOf(result.error));
             return;
           }
           rememberSessionToken(result.data.token);
@@ -117,7 +119,7 @@ function FirstAdminForm() {
           </p>
         ) : null}
         <Button type="submit" disabled={busy}>
-          {busy ? "Creating\u2026" : "Create administrator"}
+          {busy ? "Creating…" : "Create administrator"}
         </Button>
       </form>
     </div>
@@ -162,7 +164,7 @@ function SignInForm({ officeName }: { officeName: string }) {
           </p>
         ) : null}
         <Button type="submit" disabled={busy}>
-          {busy ? "Signing in\u2026" : "Enter Lee Hub"}
+          {busy ? "Signing in…" : "Enter Lee Hub"}
         </Button>
       </form>
       <div className="flex items-center gap-3 text-sm text-faint">
