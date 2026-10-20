@@ -14,6 +14,39 @@ export function money(value: number): string {
   });
 }
 
+export function groupNumber(value: string, decimals = 2): string {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (!cleaned) return "";
+  const dot = cleaned.indexOf(".");
+  const whole = (dot >= 0 ? cleaned.slice(0, dot) : cleaned).replace(/^0+(?=\d)/, "");
+  const frac = dot >= 0 ? cleaned.slice(dot + 1).replace(/\./g, "").slice(0, decimals) : undefined;
+  const grouped = (whole || (frac !== undefined ? "0" : "")).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return frac === undefined ? grouped : `${grouped}.${frac}`;
+}
+
+export function finishMoney(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const n = Number(trimmed.replace(/[$,%\s,]/g, ""));
+  return Number.isFinite(n) ? money(n) : trimmed;
+}
+
+export function finishComma(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const n = Number(trimmed.replace(/[,\s]/g, ""));
+  if (!Number.isFinite(n)) return trimmed;
+  return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+export function finishPercent(value: string): string {
+  const trimmed = value.trim().replace(/%/g, "").trim();
+  if (!trimmed) return "";
+  const n = Number(trimmed.replace(/,/g, ""));
+  if (!Number.isFinite(n)) return value.trim();
+  return `${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+}
+
 export function dollars(value: number): string {
   const formatted = money(value);
   return formatted ? `$${formatted}` : "";
