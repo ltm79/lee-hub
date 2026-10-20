@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Answers, Kind } from "@/lib/desk/types";
 import { dollars, leaseMath, saleCommission, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
+import { listInternalUsers, type InternalUser } from "@/lib/desk/people";
 import { FilesPanel } from "@/components/desk/files-panel";
 import { Card, Checks, Choice, DateField, Field, read, SecondaryButton } from "@/components/desk/ui";
 
@@ -11,29 +12,29 @@ export function sectionsFor(kind: Kind): { id: string; label: string }[] {
     return [
       { id: "property", label: "Property" },
       { id: "terms", label: "Terms" },
-      { id: "docs", label: "Documents" },
       { id: "agents", label: "Agents" },
       { id: "money", label: "Commission" },
       { id: "invoice", label: "Invoice" },
+      { id: "docs", label: "Documents" },
       { id: "sign", label: "Sign" },
     ];
   }
   if (kind === "sale") {
     return [
       { id: "property", label: "Property" },
-      { id: "docs", label: "Documents" },
       { id: "agents", label: "Parties" },
       { id: "money", label: "Commission" },
       { id: "invoice", label: "Invoice" },
+      { id: "docs", label: "Documents" },
       { id: "sign", label: "Sign" },
     ];
   }
   if (kind === "consult") {
     return [
       { id: "property", label: "Engagement" },
-      { id: "docs", label: "Documents" },
       { id: "money", label: "Commission" },
       { id: "invoice", label: "Invoice" },
+      { id: "docs", label: "Documents" },
       { id: "sign", label: "Sign" },
     ];
   }
@@ -68,7 +69,7 @@ function dropRow(answers: Answers, set: SetAnswer, prefix: string, suffixes: str
   for (const suffix of suffixes) set(`${prefix}${shown}${suffix}`, "");
 }
 
-const SPLIT_FIELDS = ["Agent", "Entity", "Pct", "Runner", "RunnerAmt", "Defer"];
+const SPLIT_FIELDS = ["Agent", "Entity", "Pct", "HasRunner", "Runner", "RunnerAmt", "Defer"];
 const OUTSIDE_FIELDS = ["License", "Company", "Contact", "Address", "City", "Email", "Area", "Phone", "Corp", "Sales", "Commission"];
 
 function PropertyBlock({
@@ -121,6 +122,7 @@ function PropertyBlock({
           value={read(answers, "sf")}
           onChange={(value) => set("sf", value)}
           inputMode="decimal"
+          format="comma"
           required
         />
       </div>
@@ -155,6 +157,7 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
           value={read(answers, "amountReceived")}
           onChange={(value) => set("amountReceived", value)}
           inputMode="decimal"
+          format="money"
         />
         <Field
           name="gross"
@@ -162,6 +165,7 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
           value={read(answers, "gross")}
           onChange={(value) => set("gross", value)}
           inputMode="decimal"
+          format="money"
           hint="House splits are a percent of this number."
         />
         <Field
@@ -185,7 +189,7 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
     <div className="grid gap-4">
       {Number.isFinite(percent) ? (
         <p className={`text-sm ${Math.abs(percent - 100) > 0.2 ? "text-red-deep" : "text-ink-soft"}`}>
-          Internal splits add up to {percent}% of gross.
+          Internal splits add up to {percent}% of Gross to Lee.
         </p>
       ) : null}
       <div className="grid gap-3 lg:grid-cols-2">
@@ -210,7 +214,7 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
                 ) : null}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field
+                <PersonPick
                   name={`split${n}Agent`}
                   label="Agent"
                   value={read(answers, `split${n}Agent`)}
@@ -224,28 +228,43 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
                 />
                 <Field
                   name={`split${n}Pct`}
-                  label="% of gross"
+                  label="% of Gross to Lee"
                   value={read(answers, `split${n}Pct`)}
                   onChange={(value) => set(`split${n}Pct`, value)}
                   inputMode="decimal"
+                  format="percent"
                 />
                 <div>
                   <p className="text-sm text-ink-soft">Net commission</p>
                   <p className="mt-2 text-lg font-medium tabular-nums text-ink">{net ? `$${net}` : "—"}</p>
                 </div>
-                <Field
-                  name={`split${n}Runner`}
-                  label="Runner"
-                  value={read(answers, `split${n}Runner`)}
-                  onChange={(value) => set(`split${n}Runner`, value)}
-                />
-                <Field
-                  name={`split${n}RunnerAmt`}
-                  label="Runner check"
-                  value={read(answers, `split${n}RunnerAmt`)}
-                  onChange={(value) => set(`split${n}RunnerAmt`, value)}
-                  inputMode="decimal"
-                />
+                <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={answers[`split${n}HasRunner`] === "1"}
+                    onChange={(event) => set(`split${n}HasRunner`, event.target.checked ? "1" : "")}
+                    className="size-4 accent-red"
+                  />
+                  Runner
+                </label>
+                {answers[`split${n}HasRunner`] === "1" ? (
+                  <>
+                    <Field
+                      name={`split${n}Runner`}
+                      label="Runner Name"
+                      value={read(answers, `split${n}Runner`)}
+                      onChange={(value) => set(`split${n}Runner`, value)}
+                    />
+                    <Field
+                      name={`split${n}RunnerAmt`}
+                      label="Runner Net Amount"
+                      value={read(answers, `split${n}RunnerAmt`)}
+                      onChange={(value) => set(`split${n}RunnerAmt`, value)}
+                      inputMode="decimal"
+                      format="money"
+                    />
+                  </>
+                ) : null}
               </div>
               <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
                 <input
@@ -322,6 +341,72 @@ function ExternalBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
   );
 }
 
+function PersonPick({
+  name,
+  label,
+  value,
+  onChange,
+  onOffice,
+}: {
+  name: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onOffice?: (office: string) => void;
+}) {
+  const [people, setPeople] = useState<InternalUser[]>([]);
+  const [custom, setCustom] = useState(false);
+  useEffect(() => {
+    let stop = false;
+    void listInternalUsers()
+      .then((rows) => {
+        if (!stop) setPeople(rows);
+      })
+      .catch(() => {
+        if (!stop) setPeople([]);
+      });
+    return () => {
+      stop = true;
+    };
+  }, []);
+  const selected = people.find((person) => person.name === value);
+  const typing = custom || (Boolean(value) && people.length > 0 && !selected);
+  return (
+    <div>
+      <label className="block text-sm text-ink-soft" htmlFor={`pick-${name}`}>
+        {label}
+      </label>
+      <select
+        id={`pick-${name}`}
+        value={typing ? "__custom" : (selected?.userId ?? "")}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === "__custom") {
+            setCustom(true);
+            onChange("");
+            return;
+          }
+          setCustom(false);
+          const person = people.find((item) => item.userId === next);
+          onChange(person?.name ?? "");
+          if (person && onOffice) onOffice(person.office);
+        }}
+        className="mt-1 h-11 w-full rounded-md border border-line bg-card px-3 text-sm text-ink focus-visible:border-red focus-visible:outline-none"
+      >
+        <option value="">Choose a person</option>
+        {people.map((person) => (
+          <option key={person.userId} value={person.userId}>
+            {person.name}
+            {person.office ? ` · ${person.office}` : ""}
+          </option>
+        ))}
+        <option value="__custom">Type a name</option>
+      </select>
+      {typing ? <Field className="mt-2" name={`${name}-custom`} label="Name" value={value} onChange={onChange} /> : null}
+    </div>
+  );
+}
+
 function AgentPairs({
   answers,
   set,
@@ -343,7 +428,13 @@ function AgentPairs({
           const n = index + 1;
           return (
             <div key={n} className="grid gap-3 sm:grid-cols-2">
-              <Field name={`${prefix}${n}Name`} label={`Agent ${n}`} value={read(answers, `${prefix}${n}Name`)} onChange={(value) => set(`${prefix}${n}Name`, value)} />
+              <PersonPick
+                name={`${prefix}${n}Name`}
+                label={`Agent ${n}`}
+                value={read(answers, `${prefix}${n}Name`)}
+                onChange={(value) => set(`${prefix}${n}Name`, value)}
+                onOffice={(office) => set(`${prefix}${n}Firm`, office)}
+              />
               <Field name={`${prefix}${n}Firm`} label="Firm" value={read(answers, `${prefix}${n}Firm`)} onChange={(value) => set(`${prefix}${n}Firm`, value)} />
             </div>
           );
@@ -563,16 +654,16 @@ export function VoucherSection({
         <div className="grid gap-5">
           <PropertyBlock answers={answers} set={set} showType />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field name="asking" label="Asking price" value={read(answers, "asking")} onChange={(value) => set("asking", value)} inputMode="decimal" />
-            <Field name="price" label="Purchase price" value={read(answers, "price")} onChange={(value) => set("price", value)} inputMode="decimal" />
+            <Field name="asking" label="Asking price" value={read(answers, "asking")} onChange={(value) => set("asking", value)} inputMode="decimal" format="money" />
+            <Field name="price" label="Purchase price" value={read(answers, "price")} onChange={(value) => set("price", value)} inputMode="decimal" format="money" />
             <Field
               name="capRate"
               label="Cap rate"
               value={read(answers, "capRate")}
               onChange={(value) => set("capRate", value)}
               inputMode="decimal"
-              placeholder="6.50"
-              hint="Percent"
+              format="percent"
+              placeholder="6.5"
             />
             <DateField name="closeDate" label="Close of escrow" value={read(answers, "closeDate")} onChange={(value) => set("closeDate", value)} />
             <Choice
@@ -718,6 +809,7 @@ export function VoucherSection({
                 onChange={(value) => set("saleBase", value)}
                 placeholder={answers.price || "Purchase price"}
                 inputMode="decimal"
+                format="money"
               />
               <Field name="salePct" label="Commission %" value={read(answers, "salePct")} onChange={(value) => set("salePct", value)} inputMode="decimal" />
               <div>
@@ -861,13 +953,11 @@ function Party({
   title: string;
 }) {
   const nameKey = prefix;
-  const dbaKey = `${prefix}Dba`;
   const contactKey = `${prefix}Contact`;
   return (
     <div className="grid gap-3 rounded-md border border-line p-3">
       <h3 className="font-serif text-xl">{title}</h3>
       <Field name={nameKey} label="Name" value={read(answers, nameKey)} onChange={(value) => set(nameKey, value)} />
-      <Field name={dbaKey} label="Company DBA" value={read(answers, dbaKey)} onChange={(value) => set(dbaKey, value)} />
       <Field name={contactKey} label="Contact" value={read(answers, contactKey)} onChange={(value) => set(contactKey, value)} />
     </div>
   );
