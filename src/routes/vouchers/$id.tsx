@@ -13,7 +13,13 @@ function VoucherRoute() {
   const { id } = Route.useParams();
   return (
     <DeskFrame section="deals">
-      {() => <EditorPage id={id} />}
+      {(snap) =>
+        snap.member.role === "staff" && !snap.member.deals ? (
+          <p className="text-sm text-muted">Deal Desk is not turned on for this login. Ask an administrator.</p>
+        ) : (
+          <EditorPage id={id} />
+        )
+      }
     </DeskFrame>
   );
 }
