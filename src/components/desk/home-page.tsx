@@ -8,7 +8,7 @@ import { downloadVoucher } from "@/lib/desk/fill";
 import { downloadPacket } from "@/lib/desk/packet";
 import { sampleAnswers, useDesk, useDeskHydrated } from "@/lib/desk/store";
 import { useMember } from "@/lib/desk/use-member";
-import { listSubmitted, type SubmittedRow } from "@/lib/desk/people";
+import { listLinkedAgents, listSubmitted, type SubmittedRow } from "@/lib/desk/people";
 import { hydrateSubmitted } from "@/lib/desk/review";
 import { PrimaryButton, SecondaryButton } from "@/components/desk/ui";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
@@ -28,6 +28,8 @@ export function HomePage() {
   const { member, role, pending: memberPending } = useMember();
   const [submitted, setSubmitted] = useState<SubmittedRow[]>([]);
   const [agentFilter, setAgentFilter] = useState("all");
+  const [forAgent, setForAgent] = useState("");
+  const [linkedAgents, setLinkedAgents] = useState<{ userId: string; name: string; office: string }[]>([]);
   const packets = useDesk((state) => state.packets);
   const saveError = useDesk((state) => state.saveError);
   const createPacket = useDesk((state) => state.createPacket);
@@ -36,6 +38,16 @@ export function HomePage() {
   const [filter, setFilter] = useState<"all" | "draft" | "submitted">("all");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (role !== "assistant") return;
+    void listLinkedAgents()
+      .then((rows) => {
+        setLinkedAgents(rows);
+        setForAgent((current) => current || rows[0]?.userId || "");
+      })
+      .catch(() => setLinkedAgents([]));
+  }, [role]);
 
   useEffect(() => {
     if (role !== "admin" && role !== "staff") return;
@@ -69,7 +81,11 @@ export function HomePage() {
   }, [packets, query, filter]);
 
   function openNew(kind: Kind, answers?: Packet["answers"]) {
-    const id = createPacket(kind, answers);
+    if (role === "assistant" && !forAgent) {
+      setError("Choose the agent this voucher is for.");
+      return;
+    }
+    const id = createPacket(kind, answers, role === "assistant" ? forAgent : undefined);
     void navigate({ to: "/vouchers/$id", params: { id } });
   }
 
@@ -96,7 +112,7 @@ export function HomePage() {
   }
 
   const office = role === "admin" || role === "staff";
-  const filing = role === "agent";
+  const filing = role === "agent" || role === "assistant";
 
   return (
     <div className="min-h-screen">
@@ -109,9 +125,11 @@ export function HomePage() {
           </div>
           <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">Deal Desk</h1>
           <p className="mt-3 max-w-2xl text-base text-ink-soft">
-            {role === "staff" || role === "admin"
-              ? "Submitted vouchers from every agent land here, with the backup files attached to them."
-              : "Your drafts stay on this login. Start a voucher here and it is waiting the next time you sign in."}
+            {role === "assistant"
+              ? "File a voucher on an agent's login. Staff see it after you mark it submitted."
+              : role === "staff" || role === "admin"
+                ? "Submitted vouchers from every agent land here, with the backup files attached to them."
+                : "Your drafts stay on this login. Start a voucher here and it is waiting the next time you sign in."}
           </p>
         </div>
       </header>
@@ -182,6 +200,27 @@ export function HomePage() {
         <>
         <section>
           <h2 className="font-serif text-2xl">New voucher</h2>
+          {role === "assistant" ? (
+            linkedAgents.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">An administrator has not linked you to an agent yet.</p>
+            ) : (
+              <label className="mt-4 block max-w-sm text-sm font-medium">
+                File for
+                <select
+                  value={forAgent}
+                  onChange={(event) => setForAgent(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-md border border-line bg-card px-3 text-sm font-normal"
+                >
+                  {linkedAgents.map((agent) => (
+                    <option key={agent.userId} value={agent.userId}>
+                      {agent.name}
+                      {agent.office ? ` · ${agent.office}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
+          ) : null}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {KIND_ORDER.map((kind) => {
               const meta = KIND_META[kind];
@@ -207,7 +246,9 @@ export function HomePage() {
             <SecondaryButton onClick={() => openNew("lease", sampleAnswers())}>Open a sample lease</SecondaryButton>
           </div>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Drafts stay on your username. Marking a voucher submitted is what staff can open.
+            {role === "assistant"
+              ? "These vouchers stay on the agent's login. Marking one submitted is what staff can open."
+              : "Drafts stay on your username. Marking a voucher submitted is what staff can open."}
           </p>
 
           {!ready ? (
@@ -262,6 +303,9 @@ export function HomePage() {
                           <p className="text-xs font-semibold uppercase tracking-widest text-red">
                             {KIND_META[packet.kind].short}
                             {packet.answers.sample === "1" ? " · Sample" : ""}
+                            {role === "assistant"
+                              ? ` · ${linkedAgents.find((agent) => agent.userId === packet.ownerId)?.name ?? "Agent"}`
+                              : ""}
                           </p>
                           <h3 className="truncate font-serif text-2xl">{packetTitle(packet)}</h3>
                           <p className="text-sm text-muted">
