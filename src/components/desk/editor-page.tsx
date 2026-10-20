@@ -4,7 +4,8 @@ import { ArrowLeft, ArrowRight, Download, FolderArchive, Mail } from "lucide-rea
 import { checkedWithoutFile, packetFiles } from "@/lib/desk/docs";
 import { blockers, KIND_META, streetAddress, type Packet } from "@/lib/desk/types";
 import { downloadVoucher } from "@/lib/desk/fill";
-import { downloadPacket, emailPacket } from "@/lib/desk/packet";
+import { downloadPacket } from "@/lib/desk/packet";
+import { notifyStaff } from "@/lib/desk/notify";
 import { useDesk, useDeskHydrated } from "@/lib/desk/store";
 import { listRecipients, type StaffRecipient } from "@/lib/desk/people";
 import { useMember } from "@/lib/desk/use-member";
@@ -112,7 +113,6 @@ export function EditorPage({ id }: { id: string }) {
     ? storedStaff
     : staff.filter((person) => legacyEmails.includes(person.email.toLowerCase())).map((person) => person.userId);
   const chosen = staff.filter((person) => selectedIds.includes(person.userId));
-  const email = chosen.map((person) => person.email).join(", ");
   const emailOk = chosen.length > 0;
   const readyToSend = missing.length === 0 && emailOk;
 
@@ -187,14 +187,19 @@ export function EditorPage({ id }: { id: string }) {
     setError("");
     setNote("");
     try {
-      const result = await emailPacket(packet, email);
-      leftOutNote(result.missing);
-      setNote(
-        `A draft is ready for ${chosen.map((person) => person.name).join(", ")}. Open it if it downloaded — Outlook or Apple Mail, whichever is the default, will show the voucher and each file. Send it from there, then mark this voucher submitted.`,
-      );
+      await saveNow(packet.id);
+      const result = await notifyStaff({ data: { packetId: packet.id, staffIds: chosen.map((person) => person.userId) } });
+      setStatus(packet.id, "submitted");
+      if (result.mode === "sent") {
+        setNote(`Notified ${chosen.map((person) => person.name).join(", ")}. No file was emailed. They can open the voucher in Lee Hub.`);
+      } else {
+        const href = `mailto:${result.to.join(",")}?subject=${encodeURIComponent(result.subject)}&body=${encodeURIComponent(result.body)}`;
+        window.location.href = href;
+        setNote("Your mail app opened with a notice only. No file is attached. Send that message. The voucher is submitted for staff in Lee Hub.");
+      }
     } catch (caught) {
       const failed = caught as { message?: string };
-      setError(failed.message || "The mail draft could not be built. Try again.");
+      setError(failed.message || "Staff could not be notified. Try again.");
     } finally {
       setBusy("");
     }
@@ -280,7 +285,7 @@ export function EditorPage({ id }: { id: string }) {
             {viewOnly ? null : (
               <PrimaryButton disabled={!readyToSend || busy !== ""} onClick={() => void onEmail()}>
                 <Mail className="size-4" aria-hidden="true" />
-                {busy === "email" ? "Sending…" : "Send"}
+                {busy === "email" ? "Sending…" : "Notify staff"}
               </PrimaryButton>
             )}
             <SecondaryButton disabled={busy !== ""} onClick={() => void onPacket()}>
@@ -298,7 +303,7 @@ export function EditorPage({ id }: { id: string }) {
           </div>
           {viewOnly ? null : (
           <p className="text-xs text-muted">
-            Send opens a draft in Outlook, Apple Mail, or whichever mail app is the default. The staff you picked are already addressed, and the voucher PDF and each backup file are attached on their own.
+            Notify staff emails the people you pick on the Sign tab. The message has a link only. The voucher file stays in Lee Hub.
           </p>
           )}
         </div>
@@ -326,7 +331,7 @@ export function EditorPage({ id }: { id: string }) {
         ) : null}
         {!viewOnly && active === sections[sections.length - 1]?.id ? (
           <fieldset className="mt-4">
-            <legend className="text-sm text-ink-soft">Email the voucher to</legend>
+            <legend className="text-sm text-ink-soft">Notify these staff</legend>
             {staff.length === 0 ? (
               <p className="mt-2 text-sm text-muted">
                 No staff with an email login yet. An admin adds them under People, using their email as the username.
