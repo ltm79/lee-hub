@@ -28,6 +28,8 @@ export type FilePayload = {
   mime: string;
   slot: string;
   contentBase64: string;
+  part?: number;
+  done?: boolean;
 };
 
 export type FileDownload = {
@@ -223,9 +225,10 @@ export const saveDeskFile = createServerFn({ method: "POST" })
     if (!data?.id || !data.packetId || !data.contentBase64) {
       throw new Error("That file cannot be saved.");
     }
-    if (data.contentBase64.length > 16_000_000) {
+    if (data.contentBase64.length > 2_200_000) {
       throw new Error(`${data.name || "A file"} is too large to keep on the account.`);
     }
+    const part = Number.isInteger(data.part) && (data.part ?? 0) > 0 ? data.part ?? 0 : 0;
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
     const packet = await sql<{ user_id: string }>`
@@ -237,24 +240,42 @@ export const saveDeskFile = createServerFn({ method: "POST" })
     if (owned[0] && owned[0].user_id !== owner) {
       throw new Error("That file is not on your account.");
     }
-    await sql`
-      insert into desk_files (id, packet_id, user_id, name, mime, slot, bytes)
-      values (
-        ${data.id.slice(0, 80)},
-        ${data.packetId},
-        ${owner},
-        ${data.name.slice(0, 180)},
-        ${(data.mime || "application/octet-stream").slice(0, 120)},
-        ${(data.slot || "other").slice(0, 40)},
-        decode(${data.contentBase64}, 'base64')
-      )
-      on conflict (id) do update set
-        name = excluded.name,
-        mime = excluded.mime,
-        slot = excluded.slot,
-        bytes = excluded.bytes
-      where desk_files.user_id = ${owner}
-    `;
+    if (part > 0) {
+      if (!owned[0]) throw new Error("That upload was interrupted. Try the file again.");
+      await sql`
+        update desk_files
+        set bytes = bytes || decode(${data.contentBase64}, 'base64')
+        where id = ${data.id.slice(0, 80)} and user_id = ${owner}
+      `;
+    } else {
+      await sql`
+        insert into desk_files (id, packet_id, user_id, name, mime, slot, bytes)
+        values (
+          ${data.id.slice(0, 80)},
+          ${data.packetId},
+          ${owner},
+          ${data.name.slice(0, 180)},
+          ${(data.mime || "application/octet-stream").slice(0, 120)},
+          ${(data.slot || "other").slice(0, 40)},
+          decode(${data.contentBase64}, 'base64')
+        )
+        on conflict (id) do update set
+          name = excluded.name,
+          mime = excluded.mime,
+          slot = excluded.slot,
+          bytes = excluded.bytes
+        where desk_files.user_id = ${owner}
+      `;
+    }
+    if (data.done !== false) {
+      const size = await sql<{ n: number }>`
+        select octet_length(bytes)::int as n from desk_files where id = ${data.id.slice(0, 80)}
+      `;
+      if ((size[0]?.n ?? 0) > 20 * 1024 * 1024) {
+        await sql`delete from desk_files where id = ${data.id.slice(0, 80)} and user_id = ${owner}`;
+        throw new Error(`${data.name || "A file"} is over 20 MB.`);
+      }
+    }
     return { ok: true as const };
   });
 
@@ -271,28 +292,60 @@ export const deleteDeskFile = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+const FILE_PART = 1_048_576;
+
 export const fetchDeskFile = createServerFn({ method: "POST" })
-  .validator((id: string) => id)
+  .validator((input: { id?: string; offset?: number } | string) =>
+    typeof input === "string"
+      ? { id: input, offset: 0 }
+      : { id: typeof input?.id === "string" ? input.id : "", offset: Math.max(0, Math.floor(Number(input?.offset) || 0)) },
+  )
   .middleware([authMiddleware])
-  .handler(async ({ context, data: id }): Promise<FileDownload | null> => {
-    const { getSql } = await import("@/lib/db");
-    const sql = await getSql();
-    const rows = await sql<{ name: string; mime: string; content: string }>`
-      select f.name, f.mime, encode(f.bytes, 'base64') as content
-      from desk_files f
-      left join desk_packets p on p.id = f.packet_id
-      left join desk_members me on me.user_id = ${context.userId}
-      where f.id = ${id}
-        and (
-          f.user_id = ${context.userId}
-          or (me.active and me.role in ('staff', 'admin') and p.status = 'submitted')
-          or exists (
-            select 1 from assistant_links l
-            where l.assistant_id = ${context.userId} and l.agent_id = f.user_id
+  .handler(
+    async ({
+      context,
+      data,
+    }): Promise<{ name: string; mime: string; content: string; total: number } | null> => {
+      const { getSql } = await import("@/lib/db");
+      const sql = await getSql();
+      const rows = await sql<{ name: string; mime: string; content: string | null; total: number }>`
+        select
+          f.name,
+          f.mime,
+          substring(encode(f.bytes, 'base64') from ${data.offset + 1} for ${FILE_PART}) as content,
+          length(encode(f.bytes, 'base64'))::int as total
+        from desk_files f
+        left join desk_packets p on p.id = f.packet_id
+        left join desk_members me on me.user_id = ${context.userId}
+        where f.id = ${data.id}
+          and (
+            f.user_id = ${context.userId}
+            or (me.active and me.role in ('staff', 'admin') and p.status = 'submitted')
+            or exists (
+              select 1 from assistant_links l
+              where l.assistant_id = ${context.userId} and l.agent_id = f.user_id
+            )
           )
-        )
-    `;
-    const row = rows[0];
-    if (!row) return null;
-    return { name: row.name, mime: row.mime, contentBase64: row.content };
-  });
+      `;
+      const row = rows[0];
+      if (!row) return null;
+      return { name: row.name, mime: row.mime, content: row.content ?? "", total: Number(row.total) || 0 };
+    },
+  );
+
+export async function downloadDeskFile(id: string): Promise<FileDownload | null> {
+  const parts: string[] = [];
+  let offset = 0;
+  let name = "";
+  let mime = "";
+  for (let guard = 0; guard < 30; guard += 1) {
+    const part = await fetchDeskFile({ data: { id, offset } });
+    if (!part) return null;
+    name = part.name;
+    mime = part.mime;
+    parts.push(part.content);
+    offset += part.content.length;
+    if (!part.content || offset >= part.total) break;
+  }
+  return { name, mime, contentBase64: parts.join("") };
+}
