@@ -27,67 +27,6 @@ type DeskState = {
   saveError: string;
 };
 
-const SAMPLE: Answers = {
-  sample: "1",
-  transaction: "lease",
-  address: "1400 E Walnut Ave",
-  city: "Commerce, CA 90040",
-  propertyType: "industrial",
-  sf: "42,500",
-  lessor: "Walnut Industrial Holdings LLC",
-  lessorDba: "Walnut Industrial",
-  lessorContact: "Elena Cho",
-  lessee: "Pacific Cold Storage Inc.",
-  lesseeContact: "Marcus Hale",
-  represented: "both",
-  leaseFrom: "11/01/2026",
-  leaseThrough: "10/31/2031",
-  leaseTerm: "11/01/2026 – 10/31/2031",
-  executionDate: "10/06/2026",
-  askingRate: "1.35",
-  askingType: "NNN",
-  leaseRate: "1.28",
-  leaseType: "NNN",
-  effectiveRate: "1.22",
-  termMos: "60",
-  ti: "15.00 PSF",
-  freeRent: "2 months",
-  nnn: "NNN, estimated $0.28 PSF",
-  esc1Period: "Year 1",
-  esc1Psf: "1.28",
-  esc1Type: "NNN",
-  esc2Period: "Years 2-5",
-  esc2Psf: "3% annual",
-  esc2Type: "NNN",
-  row1From: "1",
-  row1To: "60",
-  row1Rent: "54400",
-  row1Months: "60",
-  row1Pct: "6",
-  fundsType: "wire",
-  fundsFrom: "Pacific Cold Storage Inc.",
-  amountReceived: "195,840.00",
-  gross: "195,840.00",
-  split1Agent: "A. Reyes",
-  split1Entity: "Lee & Associates",
-  split1Pct: "60",
-  split2Agent: "J. Patel",
-  split2Entity: "Lee & Associates",
-  split2Pct: "40",
-  list1Name: "A. Reyes",
-  list1Firm: "Lee & Associates",
-  proc1Name: "J. Patel",
-  proc1Firm: "Lee & Associates",
-  checkLease1: "1",
-  checkLease2: "1",
-  checkLease5: "1",
-  billName: "Accounts Payable",
-  billCompany: "Pacific Cold Storage Inc.",
-  billCity: "Commerce, CA 90040",
-  invoice: "no",
-  agentSign: "A. Reyes",
-};
-
 function remember(error: unknown) {
   const message = error instanceof Error ? error.message : "Could not save to your account.";
   useDesk.setState({ saveError: message });
@@ -273,10 +212,6 @@ export const useDesk = create<DeskState>()((set, get) => ({
     void deleteDeskPacket({ data: id }).then(saved).catch(remember);
   },
 }));
-
-export function sampleAnswers(): Answers {
-  return { ...SAMPLE };
-}
 
 let loadedFor = "";
 let loadPromise: Promise<void> | null = null;
