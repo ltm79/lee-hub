@@ -20,7 +20,7 @@ import type { ActionResult, AdminLink, AdminPerson, AdminSnapshot, MemberRole } 
 import { MEMBER_OFFICES, roleLabel } from "@/lib/portal.types";
 
 function asRole(value: string): MemberRole {
-  if (value === "admin" || value === "staff") return value;
+  if (value === "admin" || value === "staff" || value === "assistant") return value;
   return "agent";
 }
 
@@ -256,6 +256,7 @@ export function AdminConsole({
       <LoginDialog
         open={loginOpen}
         busy={busy}
+        agents={data.people.filter((person) => person.role === "agent" && person.active)}
         onOpenChange={setLoginOpen}
         onCreate={async (draft) => {
           const ok = await run(
@@ -268,6 +269,7 @@ export function AdminConsole({
 
       <PersonDialog
         person={editingPerson}
+        agents={data.people.filter((person) => person.role === "agent" && person.active)}
         busy={busy}
         onClose={() => setEditingPerson(null)}
         onSave={async (draft) => {
@@ -559,7 +561,8 @@ function PeoplePanel({
       const byName = a.name.localeCompare(b.name);
       if (sort === "office") return (a.office || "\uffff").localeCompare(b.office || "\uffff") || byName;
       if (sort === "role") {
-        const rank = (role: MemberRole | null) => (role === "admin" ? 0 : role === "staff" ? 1 : role === "agent" ? 2 : 3);
+        const rank = (role: MemberRole | null) =>
+          role === "admin" ? 0 : role === "staff" ? 1 : role === "assistant" ? 2 : role === "agent" ? 3 : 4;
         return rank(a.role) - rank(b.role) || byName;
       }
       return byName;
@@ -591,6 +594,7 @@ function PeoplePanel({
           <option value="all">All roles</option>
           <option value="agent">Agent</option>
           <option value="staff">Staff</option>
+          <option value="assistant">Assistant</option>
           <option value="admin">Administrator</option>
         </select>
         <select
@@ -619,7 +623,16 @@ function PeoplePanel({
                 <p className="mt-1 text-sm text-faint">
                   {person.pending
                     ? "Waiting for access"
-                    : `${roleLabel(person.role)}${person.office ? ` · ${person.office}` : ""}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
+                    : `${roleLabel(person.role)}${person.office ? ` · ${person.office}` : ""}${
+                        person.role === "assistant"
+                          ? ` · ${
+                              person.agentIds
+                                .map((id) => people.find((agent) => agent.userId === id)?.name)
+                                .filter(Boolean)
+                                .join(", ") || "no agents linked"
+                            }`
+                          : ""
+                      }${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
                   {person.hasPassword ? "" : " · No password yet"}
                 </p>
               </div>
@@ -701,14 +714,57 @@ function OfficePanel({
   );
 }
 
+function AgentChecks({
+  agents,
+  selected,
+  onChange,
+}: {
+  agents: AdminPerson[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  if (agents.length === 0) {
+    return <p className="text-sm text-muted">Add an agent login before linking an assistant.</p>;
+  }
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-sm font-medium">Agents they can file for</legend>
+      {agents.map((agent) => {
+        const checked = selected.includes(agent.userId);
+        return (
+          <label key={agent.userId} className="flex min-h-11 items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...selected, agent.userId]
+                    : selected.filter((id) => id !== agent.userId),
+                )
+              }
+              className="size-5 accent-crimson"
+            />
+            <span>
+              {agent.name}
+              {agent.office ? <span className="text-muted"> · {agent.office}</span> : null}
+            </span>
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
 function LoginDialog({
   open,
   busy,
+  agents,
   onOpenChange,
   onCreate,
 }: {
   open: boolean;
   busy: boolean;
+  agents: AdminPerson[];
   onOpenChange: (open: boolean) => void;
   onCreate: (draft: {
     name: string;
@@ -717,6 +773,7 @@ function LoginDialog({
     title: string;
     role: MemberRole;
     office: string;
+    agentIds: string[];
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -725,6 +782,7 @@ function LoginDialog({
   const [title, setTitle] = useState("");
   const [role, setRole] = useState<MemberRole>("agent");
   const [office, setOffice] = useState("");
+  const [agentIds, setAgentIds] = useState<string[]>([]);
 
   return (
     <Modal
@@ -737,7 +795,7 @@ function LoginDialog({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onCreate({ name, email, password, title, role, office });
+          void onCreate({ name, email, password, title, role, office, agentIds });
         }}
       >
         <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
@@ -762,6 +820,7 @@ function LoginDialog({
             className="mt-2 h-10 w-full rounded-sm border border-line bg-surface px-3 text-base font-normal"
           >
             <option value="agent">Agent</option>
+            <option value="assistant">Assistant</option>
             <option value="staff">Staff</option>
             <option value="admin">Administrator</option>
           </select>
@@ -782,6 +841,7 @@ function LoginDialog({
             ))}
           </select>
         </label>
+        {role === "assistant" ? <AgentChecks agents={agents} selected={agentIds} onChange={setAgentIds} /> : null}
         <div className="flex flex-col gap-2">
           <TextField
             label="Password"
@@ -804,19 +864,30 @@ function LoginDialog({
 
 function PersonDialog({
   person,
+  agents,
   busy,
   onClose,
   onSave,
 }: {
   person: AdminPerson | null;
+  agents: AdminPerson[];
   busy: boolean;
   onClose: () => void;
-  onSave: (draft: { userId: string; role: MemberRole; active: boolean; title: string; office: string; email: string }) => Promise<void>;
+  onSave: (draft: {
+    userId: string;
+    role: MemberRole;
+    active: boolean;
+    title: string;
+    office: string;
+    email: string;
+    agentIds: string[];
+  }) => Promise<void>;
 }) {
   const [email, setEmail] = useState(person?.email ?? "");
   const [title, setTitle] = useState(person?.title ?? "");
   const [role, setRole] = useState<MemberRole>(person?.role ?? "agent");
   const [office, setOffice] = useState(person?.office ?? "");
+  const [agentIds, setAgentIds] = useState<string[]>(person?.agentIds ?? []);
   const [active, setActive] = useState(person?.active ?? true);
 
   useEffect(() => {
@@ -825,6 +896,7 @@ function PersonDialog({
     setEmail(person.email);
     setRole(person.role ?? "agent");
     setOffice(person.office ?? "");
+    setAgentIds(person.agentIds ?? []);
     setActive(person.active);
   }, [person]);
 
@@ -835,7 +907,7 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, role, active, title, office, email });
+            void onSave({ userId: person.userId, role, active, title, office, email, agentIds });
           }}
         >
           <TextField
@@ -854,6 +926,7 @@ function PersonDialog({
               className="mt-2 h-10 w-full rounded-sm border border-line bg-surface px-3 text-base font-normal"
             >
               <option value="agent">Agent</option>
+              <option value="assistant">Assistant</option>
               <option value="staff">Staff</option>
               <option value="admin">Administrator</option>
             </select>
@@ -874,6 +947,13 @@ function PersonDialog({
               ))}
             </select>
           </label>
+          {role === "assistant" ? (
+            <AgentChecks
+              agents={agents.filter((agent) => agent.userId !== person.userId)}
+              selected={agentIds}
+              onChange={setAgentIds}
+            />
+          ) : null}
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
             <input
               type="checkbox"
