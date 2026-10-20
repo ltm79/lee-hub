@@ -103,29 +103,44 @@ const LOCAL_DEV_ORIGINS: string[] = [
   "http://127.0.0.1:8080",
   "http://[::1]:8080",
 ];
-const baseURL = explicitBaseURL ?? {
-  // Include loopback hosts so dynamic baseURL resolves for local email/password
-  // (not only the preview wildcard).
-  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
-  // `auto` → trust both http:// and https:// expansions of allowedHosts
-  // (preview is https; local dev is http).
+const databaseUrl = env("DATABASE_URL");
+
+function hostOnly(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value.includes("://") ? value : `https://${value}`).host;
+  } catch {
+    return null;
+  }
+}
+
+// A real database means this is the Vercel site, not the chat preview. Email
+// sign-in must accept that site's address or the browser is rejected.
+const deployedHosts = databaseUrl
+  ? [
+      "*.vercel.app",
+      hostOnly(explicitBaseURL),
+      hostOnly(process.env.VERCEL_URL),
+      hostOnly(process.env.VERCEL_PROJECT_PRODUCTION_URL),
+      hostOnly(process.env.VERCEL_BRANCH_URL),
+    ].filter((host): host is string => Boolean(host))
+  : [];
+
+const baseURL = {
+  allowedHosts: [...previewAllowedHosts, ...deployedHosts, "localhost", "127.0.0.1", "[::1]"],
   protocol: "auto" as const,
-  fallback: "http://localhost:8080",
+  fallback: explicitBaseURL ?? "http://localhost:8080",
 };
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
-
-const databaseUrl = env("DATABASE_URL");
+const trustedOrigins: string[] = [
+  ...(explicitBaseURL ? [explicitBaseURL] : []),
+  ...LOCAL_DEV_ORIGINS,
+  ...previewAllowedHosts,
+  ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
+  ...deployedHosts.map((host) => `https://${host}`),
+];
 
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can
