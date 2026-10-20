@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import type { Answers, Attachment, Kind, Packet, Status } from "@/lib/desk/types";
 
-export type Role = "admin" | "agent" | "staff";
+export type Role = "admin" | "agent" | "staff" | "assistant";
 
 export const OFFICES = ["LA Central", "City of Industry"] as const;
 export type Office = (typeof OFFICES)[number];
@@ -58,7 +58,8 @@ type MemberRow = {
 };
 
 function asMember(row: MemberRow): Member {
-  const role: Role = row.role === "admin" || row.role === "staff" ? row.role : "agent";
+  const role: Role =
+    row.role === "admin" || row.role === "staff" || row.role === "assistant" ? row.role : "agent";
   return {
     userId: row.user_id,
     username: row.username,
@@ -84,7 +85,14 @@ async function linkHubMember(userId: string) {
   `;
   const row = rows[0];
   if (!row || !row.active || !row.email) return;
-  const role = row.role === "admin" ? "admin" : row.role === "staff" ? "staff" : "agent";
+  const role =
+    row.role === "admin"
+      ? "admin"
+      : row.role === "staff"
+        ? "staff"
+        : row.role === "assistant"
+          ? "assistant"
+          : "agent";
   const office = row.office ?? "";
   const existing = await sql<{ user_id: string }>`
     select user_id from desk_members where user_id = ${userId}
@@ -134,6 +142,27 @@ export const whoAmI = createServerFn({ method: "GET" })
     const me = await caller(context.userId);
     if (!me || !me.active) return null;
     return me;
+  });
+
+export const listLinkedAgents = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<{ userId: string; name: string; office: string }[]> => {
+    await linkHubMember(context.userId);
+    const me = await caller(context.userId);
+    if (!me || me.role !== "assistant") return [];
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql<{ user_id: string; name: string; office: string }>`
+      select u.id as user_id, u.name, coalesce(m.office, '') as office
+      from assistant_links l
+      join members m on m.user_id = l.agent_id
+      join "user" u on u.id = m.user_id
+      where l.assistant_id = ${context.userId}
+        and m.active = true
+        and m.role = 'agent'
+      order by u.name
+    `;
+    return rows.map((row) => ({ userId: row.user_id, name: row.name, office: row.office ?? "" }));
   });
 
 export const listPeople = createServerFn({ method: "GET" })
