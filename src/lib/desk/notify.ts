@@ -77,8 +77,13 @@ export const notifyStaff = createServerFn({ method: "POST" })
       "The voucher file is not attached. Open it in the portal to review and manage it:",
       link,
     ].join("\n");
+    const actor = await sql<{ name: string; email: string }>`
+      select name, email from "user" where id = ${context.userId}
+    `;
+    const fromEmail = actor[0]?.email?.trim() || "";
+    const fromName = actor[0]?.name?.trim() || "";
+    const from = fromEmail ? (fromName ? `${fromName} <${fromEmail}>` : fromEmail) : "";
     const key = process.env.SMTP2GO_API_KEY?.trim();
-    const from = process.env.EMAIL_FROM?.trim();
     if (key && from) {
       const response = await fetch("https://api.smtp2go.com/v3/email/send", {
         method: "POST",
@@ -87,7 +92,13 @@ export const notifyStaff = createServerFn({ method: "POST" })
           accept: "application/json",
           "X-Smtp2go-Api-Key": key,
         },
-        body: JSON.stringify({ sender: from, to, subject, text_body: body }),
+        body: JSON.stringify({
+          sender: from,
+          to,
+          subject,
+          text_body: body,
+          custom_headers: fromEmail ? [{ header: "Reply-To", value: fromEmail }] : [],
+        }),
       });
       const payload = (await response.json().catch(() => null)) as {
         data?: { failed?: number; failures?: string[] };
