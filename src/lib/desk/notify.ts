@@ -46,10 +46,11 @@ export const notifyStaff = createServerFn({ method: "POST" })
       where m.user_id = any(${data.staffIds}::text[])
         and m.role = 'staff'
         and m.active = true
+        and m.deals = true
         and u.email <> ''
     `;
     const to = [...new Set(staff.map((person) => person.email.trim()).filter(Boolean))];
-    if (to.length === 0) throw new Error("Those staff logins do not have an email address.");
+    if (to.length === 0) throw new Error("Turn on Deals for the staff who should get this notice.");
     const agent = await sql<{ name: string }>`select name from "user" where id = ${packet.user_id}`;
     const now = Date.now();
     await sql`
