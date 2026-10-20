@@ -6,7 +6,7 @@ import { KIND_META, KIND_ORDER, packetTitle, type Kind, type Packet } from "@/li
 import { packetFiles } from "@/lib/desk/docs";
 import { downloadVoucher } from "@/lib/desk/fill";
 import { downloadPacket } from "@/lib/desk/packet";
-import { sampleAnswers, useDesk, useDeskHydrated } from "@/lib/desk/store";
+import { useDesk, useDeskHydrated } from "@/lib/desk/store";
 import { useMember } from "@/lib/desk/use-member";
 import { listLinkedAgents, listSubmitted, type SubmittedRow } from "@/lib/desk/people";
 import { hydrateSubmitted } from "@/lib/desk/review";
@@ -243,7 +243,6 @@ export function HomePage() {
         <section>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <h2 className="font-serif text-2xl">Vouchers</h2>
-            <SecondaryButton onClick={() => openNew("lease", sampleAnswers())}>Open a sample lease</SecondaryButton>
           </div>
           <p className="mt-2 max-w-2xl text-sm text-muted">
             {role === "assistant"
@@ -257,7 +256,7 @@ export function HomePage() {
             <div className="mt-4 rounded-lg border border-dashed border-line-strong bg-card px-4 py-8 text-center">
               <p className="font-serif text-2xl">No vouchers yet</p>
               <p className="mx-auto mt-2 max-w-md text-sm text-ink-soft">
-                Start a blank voucher, or open the sample lease to see the rent schedule and commission math already filled in.
+                Start a blank voucher. It stays on this login until you mark it submitted.
               </p>
             </div>
           ) : (
