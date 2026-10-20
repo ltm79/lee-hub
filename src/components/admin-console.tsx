@@ -632,7 +632,7 @@ function PeoplePanel({
                                 .join(", ") || "no agents linked"
                             }`
                           : ""
-                      }${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
+                      }${person.role === "staff" && person.deals ? " · Deals" : ""}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
                   {person.hasPassword ? "" : " · No password yet"}
                 </p>
               </div>
@@ -774,6 +774,7 @@ function LoginDialog({
     role: MemberRole;
     office: string;
     agentIds: string[];
+    deals: boolean;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -783,6 +784,7 @@ function LoginDialog({
   const [role, setRole] = useState<MemberRole>("agent");
   const [office, setOffice] = useState("");
   const [agentIds, setAgentIds] = useState<string[]>([]);
+  const [deals, setDeals] = useState(false);
 
   return (
     <Modal
@@ -795,7 +797,7 @@ function LoginDialog({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onCreate({ name, email, password, title, role, office, agentIds });
+          void onCreate({ name, email, password, title, role, office, agentIds, deals });
         }}
       >
         <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
@@ -842,6 +844,17 @@ function LoginDialog({
           </select>
         </label>
         {role === "assistant" ? <AgentChecks agents={agents} selected={agentIds} onChange={setAgentIds} /> : null}
+        {role === "staff" ? (
+          <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={deals}
+              onChange={(event) => setDeals(event.target.checked)}
+              className="size-5 accent-crimson"
+            />
+            Can open Deals and receive voucher notices
+          </label>
+        ) : null}
         <div className="flex flex-col gap-2">
           <TextField
             label="Password"
@@ -881,6 +894,7 @@ function PersonDialog({
     office: string;
     email: string;
     agentIds: string[];
+    deals: boolean;
   }) => Promise<void>;
 }) {
   const [email, setEmail] = useState(person?.email ?? "");
@@ -888,6 +902,7 @@ function PersonDialog({
   const [role, setRole] = useState<MemberRole>(person?.role ?? "agent");
   const [office, setOffice] = useState(person?.office ?? "");
   const [agentIds, setAgentIds] = useState<string[]>(person?.agentIds ?? []);
+  const [deals, setDeals] = useState(person?.deals ?? false);
   const [active, setActive] = useState(person?.active ?? true);
 
   useEffect(() => {
@@ -897,6 +912,7 @@ function PersonDialog({
     setRole(person.role ?? "agent");
     setOffice(person.office ?? "");
     setAgentIds(person.agentIds ?? []);
+    setDeals(Boolean(person.deals));
     setActive(person.active);
   }, [person]);
 
@@ -907,7 +923,7 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, role, active, title, office, email, agentIds });
+            void onSave({ userId: person.userId, role, active, title, office, email, agentIds, deals });
           }}
         >
           <TextField
@@ -953,6 +969,17 @@ function PersonDialog({
               selected={agentIds}
               onChange={setAgentIds}
             />
+          ) : null}
+          {role === "staff" ? (
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={deals}
+                onChange={(event) => setDeals(event.target.checked)}
+                className="size-5 accent-crimson"
+              />
+              Can open Deals and receive voucher notices
+            </label>
           ) : null}
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
             <input
