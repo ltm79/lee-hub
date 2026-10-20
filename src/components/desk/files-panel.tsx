@@ -129,7 +129,7 @@ export function FilesPanel({
           </ul>
         </Card>
       ))}
-      <Card title={groups.length ? "Other backup" : "Backup files"} eyebrow={groups.length ? undefined : "Kept with this voucher"}>
+      <Card title={groups.length ? "Supporting Documents" : "Backup files"} eyebrow={groups.length ? undefined : "Kept with this voucher"}>
         <OtherDrop
           files={other}
           onAttach={(list) => void attach("other", list)}
@@ -264,8 +264,8 @@ function OtherDrop({
       }}
     >
       <Paperclip className="mx-auto size-5 text-red" aria-hidden="true" />
-      <p className="mt-2 text-sm font-medium">Drop extra backup here</p>
-      <p className="mt-1 text-sm text-muted">PDF, image, Word, Excel, or text. 12 MB each.</p>
+      <p className="mt-2 text-sm font-medium">Drop supporting documents here</p>
+      <p className="mt-1 text-sm text-muted">PDF, image, Word, Excel, or text. 20 MB each.</p>
       <div className="mt-3">
         <AttachButton label="Choose files" onAttach={onAttach} />
       </div>
