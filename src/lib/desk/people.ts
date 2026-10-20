@@ -165,6 +165,27 @@ export const listLinkedAgents = createServerFn({ method: "GET" })
     return rows.map((row) => ({ userId: row.user_id, name: row.name, office: row.office ?? "" }));
   });
 
+export type InternalUser = { userId: string; name: string; office: string };
+
+export const listInternalUsers = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<InternalUser[]> => {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const allowed = await sql<{ user_id: string }>`
+      select user_id from members where user_id = ${context.userId} and active = true
+    `;
+    if (!allowed[0]) return [];
+    const rows = await sql<{ user_id: string; name: string; office: string }>`
+      select u.id as user_id, u.name, coalesce(m.office, '') as office
+      from members m
+      join "user" u on u.id = m.user_id
+      where m.active = true and u.name <> ''
+      order by u.name
+    `;
+    return rows.map((row) => ({ userId: row.user_id, name: row.name, office: row.office ?? "" }));
+  });
+
 export const listPeople = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<Member[]> => {
