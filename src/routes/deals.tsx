@@ -12,7 +12,13 @@ export const Route = createFileRoute("/deals")({
 function DealsPage() {
   return (
     <DeskFrame section="deals">
-      {() => <HomePage />}
+      {(snap) =>
+        snap.member.role === "staff" && !snap.member.deals ? (
+          <p className="text-sm text-muted">Deal Desk is not turned on for this login. Ask an administrator.</p>
+        ) : (
+          <HomePage />
+        )
+      }
     </DeskFrame>
   );
 }
