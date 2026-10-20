@@ -62,7 +62,7 @@ function everyGroup(kind: Kind): DocGroup[] {
       },
     ];
   }
-  if (kind === "sale") return [{ title: "Sale file", items: SALE_DOCS }];
+  if (kind === "sale") return [{ title: "Document Checklist", items: SALE_DOCS }];
   if (kind === "consult") {
     return [
       {
