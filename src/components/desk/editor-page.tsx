@@ -334,7 +334,7 @@ export function EditorPage({ id }: { id: string }) {
             <legend className="text-sm text-ink-soft">Notify these staff</legend>
             {staff.length === 0 ? (
               <p className="mt-2 text-sm text-muted">
-                No staff with an email login yet. An admin adds them under People, using their email as the username.
+                No staff with Deals turned on yet. An administrator checks that on the staff login.
               </p>
             ) : (
               <ul className="mt-2 grid gap-2">
