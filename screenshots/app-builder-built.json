@@ -1,0 +1,41 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Lee Hub",
+      "hasCanvas": false,
+      "bodyTextLen": 347,
+      "bodyTextHash": "652e62ec7f5cd4230da8e56fcf86daaf5282ffc5c831ad53fc9ca3b8ae135020",
+      "bodyTextPrefix": "LEE HUB The office, in one place. Research, deal tools, and the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Lee Hub",
+      "hasCanvas": false,
+      "bodyTextLen": 347,
+      "bodyTextHash": "652e62ec7f5cd4230da8e56fcf86daaf5282ffc5c831ad53fc9ca3b8ae135020",
+      "bodyTextPrefix": "LEE HUB The office, in one place. Research, deal tools, and the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "desktop: body text changed (47 -> 347 chars, hash mismatch)",
+    "mobile: body text changed (47 -> 347 chars, hash mismatch)"
+  ]
+}

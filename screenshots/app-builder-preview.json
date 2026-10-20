@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Lee Hub",
+      "hasCanvas": false,
+      "bodyTextLen": 47,
+      "bodyTextHash": "0e27543a3fec4ef11189cd7b0ed56fc7ba59b451c6eb6607089bd01bd1e9ee04",
+      "bodyTextPrefix": "LEE HUB Opening the office Checking your login.",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Lee Hub",
+      "hasCanvas": false,
+      "bodyTextLen": 47,
+      "bodyTextHash": "0e27543a3fec4ef11189cd7b0ed56fc7ba59b451c6eb6607089bd01bd1e9ee04",
+      "bodyTextPrefix": "LEE HUB Opening the office Checking your login.",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
