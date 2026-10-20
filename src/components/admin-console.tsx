@@ -747,8 +747,9 @@ function PersonDialog({
   person: AdminPerson | null;
   busy: boolean;
   onClose: () => void;
-  onSave: (draft: { userId: string; role: MemberRole; active: boolean; title: string; office: string }) => Promise<void>;
+  onSave: (draft: { userId: string; role: MemberRole; active: boolean; title: string; office: string; email: string }) => Promise<void>;
 }) {
+  const [email, setEmail] = useState(person?.email ?? "");
   const [title, setTitle] = useState(person?.title ?? "");
   const [role, setRole] = useState<MemberRole>(person?.role ?? "agent");
   const [office, setOffice] = useState(person?.office ?? "");
@@ -757,6 +758,7 @@ function PersonDialog({
   useEffect(() => {
     if (!person) return;
     setTitle(person.title);
+    setEmail(person.email);
     setRole(person.role ?? "agent");
     setOffice(person.office ?? "");
     setActive(person.active);
@@ -769,9 +771,16 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, role, active, title, office });
+            void onSave({ userId: person.userId, role, active, title, office, email });
           }}
         >
+          <TextField
+            label="Work email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
           <TextField label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
           <label className="block text-sm font-medium">
             Role
