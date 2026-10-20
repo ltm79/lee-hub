@@ -10,7 +10,6 @@ import { sampleAnswers, useDesk, useDeskHydrated } from "@/lib/desk/store";
 import { useMember } from "@/lib/desk/use-member";
 import { listSubmitted, type SubmittedRow } from "@/lib/desk/people";
 import { hydrateSubmitted } from "@/lib/desk/review";
-import { PeoplePanel } from "@/components/desk/people-panel";
 import { PrimaryButton, SecondaryButton } from "@/components/desk/ui";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -110,18 +109,15 @@ export function HomePage() {
           </div>
           <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">Deal Desk</h1>
           <p className="mt-3 max-w-2xl text-base text-ink-soft">
-            {role === "staff"
+            {role === "staff" || role === "admin"
               ? "Submitted vouchers from every agent land here, with the backup files attached to them."
-              : role === "admin"
-                ? "Add agents and staff, then review what has been submitted."
-                : "Your drafts stay on this username. Start a voucher here and it is waiting the next time you sign in."}
+              : "Your drafts stay on this login. Start a voucher here and it is waiting the next time you sign in."}
           </p>
         </div>
       </header>
 
       <main className="mx-auto grid max-w-6xl gap-8 px-4 py-6 sm:px-6 sm:py-8">
         {saveError ? <p className="text-sm text-red-deep">{saveError}</p> : null}
-        {role === "admin" ? <PeoplePanel /> : null}
         {office ? (
           <section>
             <h2 className="font-serif text-2xl">Submitted</h2>
