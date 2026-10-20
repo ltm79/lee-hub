@@ -76,8 +76,8 @@ async function ensureAdmin() {
 async function linkHubMember(userId: string) {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
-  const rows = await sql<{ role: string; active: boolean; name: string; email: string }>`
-    select m.role, m.active, u.name, u.email
+  const rows = await sql<{ role: string; active: boolean; name: string; email: string; office: string }>`
+    select m.role, m.active, u.name, u.email, coalesce(m.office, '') as office
     from members m
     join "user" u on u.id = m.user_id
     where m.user_id = ${userId}
@@ -85,22 +85,23 @@ async function linkHubMember(userId: string) {
   const row = rows[0];
   if (!row || !row.active || !row.email) return;
   const role = row.role === "admin" ? "admin" : row.role === "staff" ? "staff" : "agent";
+  const office = row.office ?? "";
   const existing = await sql<{ user_id: string }>`
     select user_id from desk_members where user_id = ${userId}
   `;
   if (existing[0]) {
     await sql`
       update desk_members
-      set role = ${role}, name = ${row.name}, active = true
+      set role = ${role}, name = ${row.name}, office = ${office}, active = true
       where user_id = ${userId}
     `;
     return;
   }
   await sql`
     insert into desk_members (user_id, username, name, role, office, active)
-    values (${userId}, ${row.email.toLowerCase()}, ${row.name}, ${role}, '', true)
+    values (${userId}, ${row.email.toLowerCase()}, ${row.name}, ${role}, ${office}, true)
     on conflict (user_id) do update
-    set role = ${role}, active = true
+    set role = ${role}, office = ${office}, active = true
   `;
 }
 
