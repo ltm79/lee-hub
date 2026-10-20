@@ -27,11 +27,12 @@ export type Office = {
   tagline: string;
 };
 
-export type MemberRole = "admin" | "staff" | "agent";
+export type MemberRole = "admin" | "staff" | "assistant" | "agent";
 
 export function roleLabel(role: MemberRole | null): string {
   if (role === "admin") return "Administrator";
   if (role === "staff") return "Staff";
+  if (role === "assistant") return "Assistant";
   return "Agent";
 }
 
@@ -91,6 +92,7 @@ export type AdminPerson = {
   email: string;
   title: string;
   office: string;
+  agentIds: string[];
   role: MemberRole | null;
   active: boolean;
   pending: boolean;
