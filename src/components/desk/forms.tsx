@@ -517,20 +517,6 @@ function BillBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
   );
 }
 
-function OfficeBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
-  return (
-    <details className="rounded-md border border-line bg-paper px-3 py-2">
-      <summary className="min-h-11 cursor-pointer text-sm font-medium text-ink-soft">Office use only</summary>
-      <div className="grid gap-3 pb-2 sm:grid-cols-2">
-        <Field name="officeSl" label="S & L #" value={read(answers, "officeSl")} onChange={(value) => set("officeSl", value)} />
-        <DateField name="officeEntered" label="Entered" value={read(answers, "officeEntered")} onChange={(value) => set("officeEntered", value)} />
-        <DateField name="officePaid" label="Paid" value={read(answers, "officePaid")} onChange={(value) => set("officePaid", value)} />
-        <Field name="officeCommerce" label="Commerce" value={read(answers, "officeCommerce")} onChange={(value) => set("officeCommerce", value)} />
-      </div>
-    </details>
-  );
-}
-
 function SignBlock({
   answers,
   set,
@@ -544,14 +530,10 @@ function SignBlock({
     <div className="grid gap-4">
       <p className="text-sm text-ink-soft">
         I certify that the information in this voucher is true and correct to the best of my knowledge.
-        {extra ? ` ${extra}` : ""} Typing a name places it on the signature line of the PDF. The broker can still sign the paper copy.
+        {extra ? ` ${extra}` : ""} Typing a name places it on the signature line of the PDF.
       </p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field name="agentSign" label="Agent signature" value={read(answers, "agentSign")} onChange={(value) => set("agentSign", value)} />
-        <Field name="brokerSign" label="Broker signature" value={read(answers, "brokerSign")} onChange={(value) => set("brokerSign", value)} />
-      </div>
+      <Field name="agentSign" label="Agent signature" value={read(answers, "agentSign")} onChange={(value) => set("agentSign", value)} />
       <Field name="comments" label="Comments" multiline value={read(answers, "comments")} onChange={(value) => set("comments", value)} />
-      <OfficeBlock answers={answers} set={set} />
     </div>
   );
 }
