@@ -72,11 +72,14 @@ export function Directory({
   snap: PortalReady;
   onPatchFavorites: (favoriteIds: string[]) => void;
 }) {
-  const links = snap.links;
+  const canDeals = snap.member.role !== "staff" || snap.member.deals;
+  const links = canDeals
+    ? snap.links
+    : snap.links.filter((link) => !/\/(deals|vouchers)(?:\/|$|\?)/.test(link.url));
   const pinned = links.filter((link) => snap.favoriteIds.includes(link.id));
   const market = snap.categories.some(isMarket);
   const canEdit = snap.member.role === "admin";
-  const tones = new Map(hubGroups(snap).map((group) => [group.id, group.tone]));
+  const tones = new Map(hubGroups({ ...snap, links }).map((group) => [group.id, group.tone]));
 
   async function onToggle(id: string) {
     const has = snap.favoriteIds.includes(id);
