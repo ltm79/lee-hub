@@ -20,6 +20,7 @@ export type Packet = {
   submittedAt?: number;
   answers: Answers;
   files?: Attachment[];
+  ownerId?: string;
 };
 
 export type Blocker = {
