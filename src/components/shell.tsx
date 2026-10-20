@@ -55,12 +55,14 @@ export function toneFor(index: number) {
 function NavList({
   section,
   isAdmin,
+  canDeals,
   groups,
   activeGroup,
   onNavigate,
 }: {
   section: DeskSection;
   isAdmin: boolean;
+  canDeals: boolean;
   groups: HubGroup[];
   activeGroup: string;
   onNavigate?: () => void;
@@ -76,7 +78,7 @@ function NavList({
 
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.filter((item) => item.id !== "admin" || isAdmin).map((item) => {
+      {NAV.filter((item) => (item.id !== "admin" || isAdmin) && (item.id !== "deals" || canDeals)).map((item) => {
         const Icon = item.icon;
         const active = item.id === section;
         return (
@@ -150,12 +152,14 @@ export function Shell({
   section,
   city,
   isAdmin,
+  canDeals,
   groups = [],
   children,
 }: {
   section: DeskSection;
   city: string;
   isAdmin: boolean;
+  canDeals: boolean;
   groups?: HubGroup[];
   children: ReactNode;
 }) {
@@ -189,7 +193,7 @@ export function Shell({
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 text-ink md:flex">
         <BrandLockup city={city} variant="rail" />
         <div className="mt-8 min-h-0 flex-1 overflow-y-auto">
-          <NavList section={section} isAdmin={isAdmin} groups={groups} activeGroup={activeGroup} />
+          <NavList section={section} isAdmin={isAdmin} canDeals={canDeals} groups={groups} activeGroup={activeGroup} />
         </div>
         <div className="mt-4 border-t border-line pt-4 [&_span]:max-w-36 [&_span]:truncate">
           <UserButton />
@@ -210,7 +214,7 @@ export function Shell({
         </header>
         {open ? (
           <div className="border-b border-line bg-surface px-4 py-4 text-ink md:hidden">
-            <NavList section={section} isAdmin={isAdmin} groups={groups} activeGroup={activeGroup} onNavigate={() => setOpen(false)} />
+            <NavList section={section} isAdmin={isAdmin} canDeals={canDeals} groups={groups} activeGroup={activeGroup} onNavigate={() => setOpen(false)} />
             <div className="mt-4 border-t border-line pt-4 [&_span]:truncate">
               <UserButton />
             </div>
