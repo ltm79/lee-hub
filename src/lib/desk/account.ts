@@ -81,10 +81,11 @@ function cleanPacket(input: Packet): Packet {
     submittedAt: input.submittedAt,
     answers: cleanAnswers(input.answers),
     files: cleanFiles(input.files),
+    ownerId: typeof input.ownerId === "string" && /^[0-9a-f-]{16,80}$/i.test(input.ownerId) ? input.ownerId : undefined,
   };
 }
 
-function toPacket(row: PacketRow): Packet {
+function toPacket(row: PacketRow & { owner_id?: string }): Packet {
   return {
     id: row.id,
     kind: row.kind,
@@ -94,7 +95,30 @@ function toPacket(row: PacketRow): Packet {
     submittedAt: row.submitted_at == null ? undefined : Number(row.submitted_at),
     answers: row.answers ?? {},
     files: Array.isArray(row.files) ? row.files : [],
+    ownerId: row.owner_id,
   };
+}
+
+async function actingOwner(
+  sql: Awaited<ReturnType<Awaited<typeof import("@/lib/db")>["getSql"]>>,
+  userId: string,
+  packetOwner: string | null,
+  requested: string | null,
+) {
+  const me = await sql<{ role: string; active: boolean }>`
+    select role, active from desk_members where user_id = ${userId}
+  `;
+  if (!me[0]?.active || me[0].role !== "assistant") {
+    if (packetOwner && packetOwner !== userId) return null;
+    return userId;
+  }
+  const links = await sql<{ agent_id: string }>`
+    select agent_id from assistant_links where assistant_id = ${userId}
+  `;
+  const allowed = new Set(links.map((row) => row.agent_id));
+  if (packetOwner) return allowed.has(packetOwner) ? packetOwner : null;
+  if (requested && allowed.has(requested)) return requested;
+  return null;
 }
 
 export const listDesk = createServerFn({ method: "GET" })
@@ -102,10 +126,11 @@ export const listDesk = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<DeskSnapshot> => {
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const rows = await sql<PacketRow>`
-      select id, kind, status, answers, files, created_at, updated_at, submitted_at
+    const rows = await sql<PacketRow & { owner_id: string }>`
+      select id, user_id as owner_id, kind, status, answers, files, created_at, updated_at, submitted_at
       from desk_packets
       where user_id = ${context.userId}
+        or user_id in (select agent_id from assistant_links where assistant_id = ${context.userId})
       order by updated_at desc
     `;
     const settings = await sql<{ default_email: string }>`
@@ -126,16 +151,23 @@ export const saveDeskPacket = createServerFn({ method: "POST" })
     const owned = await sql<{ user_id: string }>`
       select user_id from desk_packets where id = ${data.id}
     `;
-    if (owned[0] && owned[0].user_id !== context.userId) {
-      throw new Error("That voucher is not on your account.");
-    }
+    const owner = await actingOwner(sql, context.userId, owned[0]?.user_id ?? null, data.ownerId ?? null);
+    if (!owner) throw new Error("That voucher is not on your account.");
+    await sql`
+      insert into desk_members (user_id, username, name, role, office, active)
+      select u.id, lower(u.email), u.name, m.role, coalesce(m.office, ''), m.active
+      from "user" u
+      join members m on m.user_id = u.id
+      where u.id = ${owner}
+      on conflict (user_id) do nothing
+    `;
     const answers = JSON.stringify(data.answers);
     const files = JSON.stringify(data.files ?? []);
     await sql`
       insert into desk_packets (id, user_id, kind, status, answers, files, created_at, updated_at, submitted_at)
       values (
         ${data.id},
-        ${context.userId},
+        ${owner},
         ${data.kind},
         ${data.status},
         ${answers}::jsonb,
@@ -151,7 +183,7 @@ export const saveDeskPacket = createServerFn({ method: "POST" })
         files = excluded.files,
         updated_at = excluded.updated_at,
         submitted_at = excluded.submitted_at
-      where desk_packets.user_id = ${context.userId}
+      where desk_packets.user_id = ${owner}
     `;
     return { ok: true as const };
   });
@@ -162,8 +194,11 @@ export const deleteDeskPacket = createServerFn({ method: "POST" })
   .handler(async ({ context, data: id }) => {
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    await sql`delete from desk_files where packet_id = ${id} and user_id = ${context.userId}`;
-    await sql`delete from desk_packets where id = ${id} and user_id = ${context.userId}`;
+    const packet = await sql<{ user_id: string }>`select user_id from desk_packets where id = ${id}`;
+    const owner = await actingOwner(sql, context.userId, packet[0]?.user_id ?? null, null);
+    if (!owner) return { ok: true as const };
+    await sql`delete from desk_files where packet_id = ${id} and user_id = ${owner}`;
+    await sql`delete from desk_packets where id = ${id} and user_id = ${owner}`;
     return { ok: true as const };
   });
 
@@ -193,12 +228,13 @@ export const saveDeskFile = createServerFn({ method: "POST" })
     }
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const packet = await sql<{ id: string }>`
-      select id from desk_packets where id = ${data.packetId} and user_id = ${context.userId}
+    const packet = await sql<{ user_id: string }>`
+      select user_id from desk_packets where id = ${data.packetId}
     `;
-    if (!packet[0]) throw new Error("Save the voucher before its files.");
+    const owner = await actingOwner(sql, context.userId, packet[0]?.user_id ?? null, null);
+    if (!owner) throw new Error("Save the voucher before its files.");
     const owned = await sql<{ user_id: string }>`select user_id from desk_files where id = ${data.id}`;
-    if (owned[0] && owned[0].user_id !== context.userId) {
+    if (owned[0] && owned[0].user_id !== owner) {
       throw new Error("That file is not on your account.");
     }
     await sql`
@@ -206,7 +242,7 @@ export const saveDeskFile = createServerFn({ method: "POST" })
       values (
         ${data.id.slice(0, 80)},
         ${data.packetId},
-        ${context.userId},
+        ${owner},
         ${data.name.slice(0, 180)},
         ${(data.mime || "application/octet-stream").slice(0, 120)},
         ${(data.slot || "other").slice(0, 40)},
@@ -217,7 +253,7 @@ export const saveDeskFile = createServerFn({ method: "POST" })
         mime = excluded.mime,
         slot = excluded.slot,
         bytes = excluded.bytes
-      where desk_files.user_id = ${context.userId}
+      where desk_files.user_id = ${owner}
     `;
     return { ok: true as const };
   });
@@ -228,7 +264,10 @@ export const deleteDeskFile = createServerFn({ method: "POST" })
   .handler(async ({ context, data: id }) => {
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    await sql`delete from desk_files where id = ${id} and user_id = ${context.userId}`;
+    const file = await sql<{ user_id: string }>`select user_id from desk_files where id = ${id}`;
+    const owner = await actingOwner(sql, context.userId, file[0]?.user_id ?? null, null);
+    if (!owner) return { ok: true as const };
+    await sql`delete from desk_files where id = ${id} and user_id = ${owner}`;
     return { ok: true as const };
   });
 
@@ -247,6 +286,10 @@ export const fetchDeskFile = createServerFn({ method: "POST" })
         and (
           f.user_id = ${context.userId}
           or (me.active and me.role in ('staff', 'admin') and p.status = 'submitted')
+          or exists (
+            select 1 from assistant_links l
+            where l.assistant_id = ${context.userId} and l.agent_id = f.user_id
+          )
         )
     `;
     const row = rows[0];
