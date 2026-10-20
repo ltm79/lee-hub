@@ -1,5 +1,6 @@
 import type { Answers } from "@/lib/desk/types";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { finishComma, finishMoney, finishPercent, groupNumber } from "@/lib/desk/money";
 
 export function Field({
   name,
@@ -13,6 +14,7 @@ export function Field({
   multiline = false,
   hint,
   required = false,
+  format,
 }: {
   name: string;
   label: string;
@@ -25,12 +27,23 @@ export function Field({
   multiline?: boolean;
   hint?: string;
   required?: boolean;
+  format?: "money" | "comma" | "percent";
 }) {
   const id = `f-${name}`;
   const empty = required && !value.trim();
   const shared = `mt-1 w-full rounded-md border bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none ${
     empty ? "border-red bg-red-soft" : "border-line"
   }`;
+  function change(next: string) {
+    if (format === "money" || format === "comma") onChange?.(groupNumber(next, format === "money" ? 2 : 2));
+    else onChange?.(next);
+  }
+  function blur() {
+    if (!onChange || !format) return;
+    if (format === "money") onChange(finishMoney(value));
+    if (format === "comma") onChange(finishComma(value));
+    if (format === "percent") onChange(finishPercent(value));
+  }
   return (
     <label htmlFor={id} className={`block ${className}`}>
       <span className="text-sm text-ink-soft">
@@ -44,7 +57,8 @@ export function Field({
           readOnly={readOnly}
           rows={4}
           placeholder={placeholder}
-          onChange={(event) => onChange?.(event.target.value)}
+          onChange={(event) => change(event.target.value)}
+          onBlur={blur}
           className={`${shared} py-2`}
         />
       ) : (
@@ -55,13 +69,25 @@ export function Field({
           inputMode={inputMode}
           placeholder={placeholder}
           autoComplete={name === "address" ? "street-address" : "off"}
-          onChange={(event) => onChange?.(event.target.value)}
+          onChange={(event) => change(event.target.value)}
+          onBlur={blur}
           className={`${shared} h-11 ${readOnly ? "bg-paper text-ink" : ""}`}
         />
       )}
       {hint ? <span className="mt-1 block text-xs text-muted">{hint}</span> : null}
     </label>
   );
+}
+
+function normalizeDate(value: string): string {
+  const match = value.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+  if (!match) return value;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  let year = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return value;
+  if (year < 100) year += year < 70 ? 2000 : 1900;
+  return `${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}`;
 }
 
 function toIsoDate(value: string): string {
@@ -105,6 +131,7 @@ export function DateField({
           inputMode="numeric"
           autoComplete="off"
           onChange={(event) => onChange(event.target.value)}
+          onBlur={() => onChange(normalizeDate(value))}
           className="h-11 min-w-0 flex-1 rounded-md border border-line bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none"
         />
         <input
