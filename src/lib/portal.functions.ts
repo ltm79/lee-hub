@@ -57,17 +57,42 @@ function normalizeUrl(raw: string): string | null {
 }
 
 function roleOf(value: unknown): MemberRole | null {
-  return value === "admin" || value === "staff" || value === "agent" ? value : null;
+  return value === "admin" || value === "staff" || value === "assistant" || value === "agent" ? value : null;
 }
 
 function officeOf(value: unknown): "LA Central" | "City of Industry" | null {
   return value === "LA Central" || value === "City of Industry" ? value : null;
 }
 
-function deskRoleOf(role: MemberRole): "admin" | "staff" | "agent" {
+function deskRoleOf(role: MemberRole): "admin" | "staff" | "assistant" | "agent" {
   if (role === "admin") return "admin";
   if (role === "staff") return "staff";
+  if (role === "assistant") return "assistant";
   return "agent";
+}
+
+async function saveAssistantLinks(
+  db: Awaited<ReturnType<typeof getDb>>,
+  userId: string,
+  role: MemberRole,
+  agentIds: unknown,
+) {
+  await db`delete from assistant_links where assistant_id = ${userId}`;
+  if (role !== "assistant" || !Array.isArray(agentIds)) return;
+  const ids = [...new Set(agentIds.filter((id): id is string => typeof id === "string").map((id) => id.trim()))]
+    .filter((id) => id && id !== userId)
+    .slice(0, 40);
+  for (const agentId of ids) {
+    const agents = await db<{ user_id: string }>`
+      select user_id from members where user_id = ${agentId} and role = 'agent' and active = true
+    `;
+    if (!agents[0]) continue;
+    await db`
+      insert into assistant_links (assistant_id, agent_id)
+      values (${userId}, ${agentId})
+      on conflict do nothing
+    `;
+  }
 }
 
 function iconOf(value: unknown): string {
@@ -366,6 +391,15 @@ export const loadAdmin = createServerFn({ method: "GET" })
       from links
       order by sort_order, name
     `;
+    const assignments = await db<{ assistant_id: string; agent_id: string }>`
+      select assistant_id, agent_id from assistant_links
+    `;
+    const agentsFor = new Map<string, string[]>();
+    for (const link of assignments) {
+      const list = agentsFor.get(link.assistant_id) ?? [];
+      list.push(link.agent_id);
+      agentsFor.set(link.assistant_id, list);
+    }
     const roster: AdminPerson[] = people.map((person) => {
       const role = roleOf(person.role);
       const pending = role === null;
@@ -375,6 +409,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         email: person.email,
         title: person.title ?? "",
         office: person.office ?? "",
+        agentIds: agentsFor.get(person.id) ?? [],
         role,
         active: pending ? false : flag(person.active),
         pending,
@@ -431,6 +466,7 @@ export const createLogin = createServerFn({ method: "POST" })
       title?: string;
       role?: string;
       office?: string;
+      agentIds?: string[];
     }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
@@ -489,13 +525,14 @@ export const createLogin = createServerFn({ method: "POST" })
       set role = ${deskRoleOf(role)}, office = ${office}, active = true
       where user_id = ${userId}
     `;
+    await saveAssistantLinks(db, userId, role, data?.agentIds);
     return { ok: true };
   });
 
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; agentIds?: string[] }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -574,6 +611,7 @@ export const updateMember = createServerFn({ method: "POST" })
         where user_id = ${userId}
       `;
     }
+    await saveAssistantLinks(db, userId, role, data?.agentIds);
     if (!active) {
       await db`delete from "session" where "userId" = ${userId}`;
     }
