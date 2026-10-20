@@ -11,6 +11,8 @@ import {
 import type { LibraryNode } from "@/lib/portal.types";
 
 const ACCEPT = ".pdf,.csv,.xls,.xlsx,.xlsm,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt,.zip";
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const CHUNK_BYTES = 2_097_150;
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -18,7 +20,7 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function readFile(file: File) {
+function readBlob(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -27,7 +29,7 @@ function readFile(file: File) {
       resolve(comma >= 0 ? raw.slice(comma + 1) : raw);
     };
     reader.onerror = () => reject(reader.error ?? new Error("Could not read that file."));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -109,12 +111,37 @@ export function MarketLibrary({ canEdit }: { canEdit: boolean }) {
     setBusy(true);
     setError("");
     for (const file of Array.from(list)) {
-      const content = await readFile(file);
-      const result = await uploadLibraryFile({ data: { parentId, name: file.name, content } });
-      if (!result.ok) {
-        setError(result.error);
+      if (file.size <= 0) {
+        setError("That file is empty.");
         break;
       }
+      if (file.size > MAX_FILE_BYTES) {
+        setError(`${file.name} is over 20 MB.`);
+        break;
+      }
+      const id = crypto.randomUUID();
+      let offset = 0;
+      let failed = false;
+      for (let start = 0; start < file.size; start += CHUNK_BYTES) {
+        const content = await readBlob(file.slice(start, Math.min(file.size, start + CHUNK_BYTES)));
+        const result = await uploadLibraryFile({
+          data: {
+            id,
+            parentId,
+            name: file.name,
+            content,
+            offset,
+            done: start + CHUNK_BYTES >= file.size,
+          },
+        });
+        if (!result.ok) {
+          setError(result.error);
+          failed = true;
+          break;
+        }
+        offset += content.length;
+      }
+      if (failed) break;
     }
     if (fileRef.current) fileRef.current.value = "";
     setBusy(false);
@@ -136,13 +163,22 @@ export function MarketLibrary({ canEdit }: { canEdit: boolean }) {
 
   async function download(node: LibraryNode) {
     setError("");
-    const result = await downloadLibraryFile({ data: { id: node.id } });
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    const parts: string[] = [];
+    let offset = 0;
+    let name = node.name;
+    for (;;) {
+      const result = await downloadLibraryFile({ data: { id: node.id, offset } });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      name = result.name;
+      parts.push(result.content);
+      offset += result.content.length;
+      if (offset >= result.total) break;
     }
     try {
-      saveDownload(result.name, result.content);
+      saveDownload(name, parts.join(""));
     } catch {
       setError("Could not open that file.");
     }
@@ -242,7 +278,7 @@ export function MarketLibrary({ canEdit }: { canEdit: boolean }) {
         <div className="mt-4 rounded-lg border border-dashed border-line bg-surface px-4 py-8 text-center">
           <p className="font-medium">Nothing in this folder yet</p>
           <p className="mt-1 text-sm text-muted">
-            {canEdit ? "Add a subfolder or a market file. Up to 5 MB each." : "Files added by an administrator show up here."}
+            {canEdit ? "Add a subfolder or a market file. Up to 20 MB each." : "Files added by an administrator show up here."}
           </p>
         </div>
       ) : null}
