@@ -17,7 +17,7 @@ import {
   updateMember,
 } from "@/lib/portal.functions";
 import type { ActionResult, AdminLink, AdminPerson, AdminSnapshot, MemberRole } from "@/lib/portal.types";
-import { roleLabel } from "@/lib/portal.types";
+import { MEMBER_OFFICES, roleLabel } from "@/lib/portal.types";
 
 function asRole(value: string): MemberRole {
   if (value === "admin" || value === "staff") return value;
@@ -557,7 +557,7 @@ function PeoplePanel({
             <p className="mt-1 text-sm text-faint">
               {person.pending
                 ? "Waiting for access"
-                : `${roleLabel(person.role)}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
+                : `${roleLabel(person.role)}${person.office ? ` · ${person.office}` : ""}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
               {person.hasPassword ? "" : " · No password yet"}
             </p>
           </div>
@@ -574,6 +574,7 @@ function PeoplePanel({
                           role: "agent",
                           active: true,
                           title: person.title,
+                          office: person.office,
                         },
                       }),
                     `${person.name} can open Lee Hub.`,
@@ -651,6 +652,7 @@ function LoginDialog({
     password: string;
     title: string;
     role: MemberRole;
+    office: string;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -658,6 +660,7 @@ function LoginDialog({
   const [password, setPassword] = useState("");
   const [title, setTitle] = useState("");
   const [role, setRole] = useState<MemberRole>("agent");
+  const [office, setOffice] = useState("");
 
   return (
     <Modal
@@ -670,7 +673,7 @@ function LoginDialog({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onCreate({ name, email, password, title, role });
+          void onCreate({ name, email, password, title, role, office });
         }}
       >
         <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
@@ -697,6 +700,22 @@ function LoginDialog({
             <option value="agent">Agent</option>
             <option value="staff">Staff</option>
             <option value="admin">Administrator</option>
+          </select>
+        </label>
+        <label className="block text-sm font-medium">
+          Office
+          <select
+            value={office}
+            onChange={(event) => setOffice(event.target.value)}
+            required
+            className="mt-2 h-10 w-full rounded-sm border border-line bg-surface px-3 text-base font-normal"
+          >
+            <option value="">Choose an office</option>
+            {MEMBER_OFFICES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
         </label>
         <div className="flex flex-col gap-2">
@@ -728,16 +747,18 @@ function PersonDialog({
   person: AdminPerson | null;
   busy: boolean;
   onClose: () => void;
-  onSave: (draft: { userId: string; role: MemberRole; active: boolean; title: string }) => Promise<void>;
+  onSave: (draft: { userId: string; role: MemberRole; active: boolean; title: string; office: string }) => Promise<void>;
 }) {
   const [title, setTitle] = useState(person?.title ?? "");
   const [role, setRole] = useState<MemberRole>(person?.role ?? "agent");
+  const [office, setOffice] = useState(person?.office ?? "");
   const [active, setActive] = useState(person?.active ?? true);
 
   useEffect(() => {
     if (!person) return;
     setTitle(person.title);
     setRole(person.role ?? "agent");
+    setOffice(person.office ?? "");
     setActive(person.active);
   }, [person]);
 
@@ -748,7 +769,7 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, role, active, title });
+            void onSave({ userId: person.userId, role, active, title, office });
           }}
         >
           <TextField label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -762,6 +783,22 @@ function PersonDialog({
               <option value="agent">Agent</option>
               <option value="staff">Staff</option>
               <option value="admin">Administrator</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            Office
+            <select
+              value={office}
+              onChange={(event) => setOffice(event.target.value)}
+              required
+              className="mt-2 h-10 w-full rounded-sm border border-line bg-surface px-3 text-base font-normal"
+            >
+              <option value="">Choose an office</option>
+              {MEMBER_OFFICES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
           </label>
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
