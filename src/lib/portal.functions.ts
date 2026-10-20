@@ -549,22 +549,31 @@ export const updateMember = createServerFn({ method: "POST" })
       `;
     }
 
-    await db`
-      insert into members (user_id, role, active, title, office)
-      values (${userId}, ${role}, ${active}, ${title}, ${office ?? ""})
-      on conflict (user_id) do update
-      set role = ${role},
-          active = ${active},
-          title = ${title},
-          office = case when ${office} is null then members.office else ${office} end
-    `;
-    await db`
-      update desk_members
-      set role = ${deskRoleOf(role)},
-          active = ${active},
-          office = case when ${office} is null then desk_members.office else ${office} end
-      where user_id = ${userId}
-    `;
+    if (office) {
+      await db`
+        insert into members (user_id, role, active, title, office)
+        values (${userId}, ${role}, ${active}, ${title}, ${office})
+        on conflict (user_id) do update
+        set role = ${role}, active = ${active}, title = ${title}, office = ${office}
+      `;
+      await db`
+        update desk_members
+        set role = ${deskRoleOf(role)}, active = ${active}, office = ${office}
+        where user_id = ${userId}
+      `;
+    } else {
+      await db`
+        insert into members (user_id, role, active, title)
+        values (${userId}, ${role}, ${active}, ${title})
+        on conflict (user_id) do update
+        set role = ${role}, active = ${active}, title = ${title}
+      `;
+      await db`
+        update desk_members
+        set role = ${deskRoleOf(role)}, active = ${active}
+        where user_id = ${userId}
+      `;
+    }
     if (!active) {
       await db`delete from "session" where "userId" = ${userId}`;
     }
