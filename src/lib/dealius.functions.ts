@@ -36,6 +36,7 @@ export type Leaderboard =
       to: string;
       capped: boolean;
       partial: boolean;
+      note: string;
       offices: BoardOffice[];
       rows: BoardRow[];
     }
@@ -56,6 +57,7 @@ type BoardJob = {
   offices: BoardOffice[];
   capped: boolean;
   missed: number;
+  sawPaidDate: boolean;
 };
 const jobs = new Map<string, BoardJob>();
 
@@ -153,6 +155,7 @@ function boardOf(job: BoardJob): Leaderboard {
     to: job.to,
     capped: job.capped || job.missed > 0,
     partial: job.cursor < job.deals.length,
+    note: "",
     offices: job.offices,
     rows: [...job.totals.values()].sort((a, b) => b.gross - a.gross || a.name.localeCompare(b.name)),
   };
@@ -177,6 +180,34 @@ function closedStatus(value: unknown): boolean {
   return text(value).toLowerCase() === "closed";
 }
 
+function yearsBefore(iso: string, years: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${Number(match[1]) - years}-${match[2]}-${match[3]}`;
+}
+
+function isPaidDateKey(key: string): boolean {
+  const name = key.toLowerCase().replace(/[^a-z]/g, "");
+  if (name.includes("estimate")) return false;
+  if (name.includes("invoice") && name.includes("paid")) return true;
+  return name === "invoicepaiddate" || name === "paiddate" || name === "datepaid" || name === "paymentdate";
+}
+
+function invoicePaidDays(value: unknown, depth = 0): string[] {
+  if (!value || typeof value !== "object" || depth > 5) return [];
+  if (Array.isArray(value)) return value.flatMap((item) => invoicePaidDays(item, depth + 1));
+  const found: string[] = [];
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (isPaidDateKey(key)) {
+      const day = calendarDay(child);
+      if (day) found.push(day);
+    } else if (child && typeof child === "object") {
+      found.push(...invoicePaidDays(child, depth + 1));
+    }
+  }
+  return found;
+}
+
 function day(value: string, end: boolean): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return "";
@@ -195,7 +226,7 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
     const from = day(data.from, false);
     const to = day(data.to, true);
     if (!from || !to) return { ok: false, error: "Choose a start and end date." };
-    const jobKey = `v4|${data.from}|${data.to}`;
+    const jobKey = `v5|${data.from}|${data.to}`;
     const cached = cache.get(jobKey);
     if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
 
@@ -226,7 +257,7 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
       }
       const query = new URLSearchParams();
       if (closedId) query.set("DealRelevance", String(closedId));
-      query.set("DateFrom", from);
+      query.set("DateFrom", day(yearsBefore(data.from, 6), false));
       query.set("DateTo", to);
       const deals = await everyPage(`/api/deals?${query.toString()}`, key, DEAL_CAP);
       const capped = deals.length >= DEAL_CAP;
@@ -236,8 +267,6 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
         if (!id || seen.has(id)) return false;
         const status = text(deal.DealStatusName);
         if (status && !closedStatus(status)) return false;
-        const closedDay = calendarDay(deal.ActualCloseDate);
-        if (!closedDay || closedDay < data.from || closedDay > data.to) return false;
         seen.add(id);
         return true;
       });
@@ -253,6 +282,7 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
         offices,
         capped,
         missed: 0,
+        sawPaidDate: false,
       };
       jobs.set(jobKey, job);
     }
@@ -273,8 +303,14 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
               const detail = await dealiusGet(`/api/deals/${id}`, key);
               const record = detail && typeof detail === "object" ? (detail as Record<string, unknown>) : {};
               if (!closedStatus(record.DealStatusName)) return;
-              const closedDay = calendarDay(record.ActualCloseDate) || calendarDay(deal.ActualCloseDate);
-              if (!closedDay || closedDay < data.from || closedDay > data.to) return;
+              let paidDays = invoicePaidDays(record);
+              if (paidDays.length === 0) {
+                const payments = await dealiusGet(`/api/deals/payments?dealId=${id}`, key);
+                paidDays = invoicePaidDays(payments);
+              }
+              if (paidDays.length > 0) job.sawPaidDate = true;
+              const paidDay = paidDays.filter((day) => day >= data.from && day <= data.to).sort().at(-1);
+              if (!paidDay) return;
               const people = (Array.isArray(record.InternalBrokers) ? record.InternalBrokers : []).filter(
                 (person): person is Record<string, unknown> => Boolean(person) && typeof person === "object",
               );
@@ -293,7 +329,7 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
                 row.lines.push({
                   dealId: id,
                   name: text(record.DealName) || `Deal ${id}`,
-                  closed: closedDay,
+                  closed: paidDay,
                   gross: share.gross,
                   split,
                 });
@@ -305,6 +341,9 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
         );
       }
       const result = boardOf(job);
+      if (result.ok && !result.partial && !job.sawPaidDate) {
+        result.note = "Dealius did not return an invoice paid date on these deals.";
+      }
       if (result.ok && !result.partial && job.missed === 0) {
         cache.set(jobKey, { at: Date.now(), data: result });
         jobs.delete(jobKey);
