@@ -25,6 +25,7 @@ export type Leaderboard =
       from: string;
       to: string;
       capped: boolean;
+      partial: boolean;
       offices: BoardOffice[];
       rows: BoardRow[];
     }
@@ -32,6 +33,21 @@ export type Leaderboard =
 
 type CacheSlot = { at: number; data: Leaderboard };
 const cache = new Map<string, CacheSlot>();
+
+type BoardJob = {
+  at: number;
+  busy: boolean;
+  from: string;
+  to: string;
+  deals: Record<string, unknown>[];
+  cursor: number;
+  totals: Map<number, BoardRow>;
+  brokerById: Map<number, Record<string, unknown>>;
+  offices: BoardOffice[];
+  capped: boolean;
+  missed: number;
+};
+const jobs = new Map<string, BoardJob>();
 
 function num(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);
@@ -98,6 +114,38 @@ async function pool<T, R>(items: T[], size: number, run: (item: T) => Promise<R>
   return out;
 }
 
+function ensure(job: BoardJob, id: number, first: string, last: string): BoardRow {
+  const existing = job.totals.get(id);
+  if (existing) return existing;
+  const broker = job.brokerById.get(id);
+  const name = text(broker?.FullName) || [first, last].filter(Boolean).join(" ") || "Broker";
+  const row: BoardRow = {
+    id,
+    name,
+    title: text(broker?.Title),
+    officeId: num(broker?.OfficeID),
+    officeName: text(broker?.OfficeName),
+    photo: photoOf(text(broker?.ThumbnailUrl)),
+    deals: 0,
+    volume: 0,
+    gross: 0,
+  };
+  job.totals.set(id, row);
+  return row;
+}
+
+function boardOf(job: BoardJob): Leaderboard {
+  return {
+    ok: true,
+    from: job.from,
+    to: job.to,
+    capped: job.capped || job.missed > 0,
+    partial: job.cursor < job.deals.length,
+    offices: job.offices,
+    rows: [...job.totals.values()].sort((a, b) => b.gross - a.gross || a.name.localeCompare(b.name)),
+  };
+}
+
 function day(value: string, end: boolean): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return "";
@@ -116,10 +164,17 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
     const from = day(data.from, false);
     const to = day(data.to, true);
     if (!from || !to) return { ok: false, error: "Choose a start and end date." };
-    const cached = cache.get(`${from}|${to}`);
+    const jobKey = `v2|${data.from}|${data.to}`;
+    const cached = cache.get(jobKey);
     if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
 
     try {
+      let job = jobs.get(jobKey);
+      if (job && Date.now() - job.at > 10 * 60 * 1000) {
+        jobs.delete(jobKey);
+        job = undefined;
+      }
+      if (!job) {
       const relevance = rowsOf(await dealiusGet("/api/lookup/dealrelevancetypes", key));
       const closed = relevance.find((item) => /closed/i.test(text(item.Text ?? item.text)));
       const closedId = num(closed?.ID ?? closed?.Id ?? closed?.id);
@@ -138,79 +193,67 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
       query.set("DateTo", to);
       const deals = await everyPage(`/api/deals?${query.toString()}`, key, DEAL_CAP);
       const capped = deals.length >= DEAL_CAP;
-
-      const totals = new Map<number, BoardRow>();
-      function ensure(id: number, first: string, last: string): BoardRow {
-        const existing = totals.get(id);
-        if (existing) return existing;
-        const broker = brokerById.get(id);
-        const name = text(broker?.FullName) || [first, last].filter(Boolean).join(" ") || "Broker";
-        const row: BoardRow = {
-          id,
-          name,
-          title: text(broker?.Title),
-          officeId: num(broker?.OfficeID),
-          officeName: text(broker?.OfficeName),
-          photo: photoOf(text(broker?.ThumbnailUrl)),
-          deals: 0,
-          volume: 0,
-          gross: 0,
-        };
-        totals.set(id, row);
-        return row;
-      }
-
-      const splits = new Map<number, Map<number, number>>();
-      const deadline = Date.now() + 12_000;
-      await pool(deals, 8, async (deal) => {
-        if (Date.now() > deadline) return;
-        const id = num(deal.DealID ?? deal.dealID);
-        if (!id) return;
-        try {
-          const people = rowsOf(await dealiusGet(`/api/deals/brokers?dealId=${id}`, key));
-          const amounts = new Map<number, number>();
-          for (const person of people) {
-            if (person.IsOutsideBroker === true) continue;
-            const contactId = num(person.ContactID);
-            if (!contactId) continue;
-            amounts.set(contactId, num(person.CommissionGrossAmount ?? person.CommissionAmount));
-          }
-          splits.set(id, amounts);
-        } catch {
-          splits.set(id, new Map());
-        }
+      const closedDeals = deals.filter((deal) => {
+        const closedOn = text(deal.ActualCloseDate);
+        const closedDay = /^(\d{4}-\d{2}-\d{2})/.exec(closedOn)?.[1] ?? "";
+        return Boolean(closedDay) && closedDay >= data.from && closedDay <= data.to;
       });
-
-      for (const deal of deals) {
-        if (!closedId && text(deal.DealStatusName) && !/closed/i.test(text(deal.DealStatusName))) continue;
-        const people = (Array.isArray(deal.InternalBrokers) ? deal.InternalBrokers : []).filter(
-          (person): person is Record<string, unknown> => Boolean(person) && typeof person === "object",
-        );
-        if (people.length === 0) continue;
-        const dealId = num(deal.DealID);
-        const volume = num(deal.TransactionTotalAmount);
-        const split = splits.get(dealId);
-        for (const person of people) {
-          const id = num(person.ContactID);
-          if (!id) continue;
-          const row = ensure(id, text(person.FirstName), text(person.LastName));
-          row.deals += 1;
-          row.volume += volume;
-          const amount = split?.get(id);
-          row.gross += amount ?? (people.length === 1 ? num(deal.BrokerSplitAmount) : num(deal.BrokerSplitAmount) / people.length);
-        }
-      }
-
-      const result: Leaderboard = {
-        ok: true,
+      job = {
+        at: Date.now(),
+        busy: false,
         from: data.from,
         to: data.to,
-        capped,
+        deals: closedDeals,
+        cursor: 0,
+        totals: new Map(),
+        brokerById,
         offices,
-        rows: [...totals.values()].sort((a, b) => b.gross - a.gross || b.volume - a.volume || a.name.localeCompare(b.name)),
+        capped,
+        missed: 0,
       };
-      cache.set(`${from}|${to}`, { at: Date.now(), data: result });
+      jobs.set(jobKey, job);
+    }
+
+    if (job.busy) return boardOf(job);
+    job.busy = true;
+    job.at = Date.now();
+    try {
+      const deadline = Date.now() + 7000;
+      while (job.cursor < job.deals.length && Date.now() < deadline) {
+        const batch = job.deals.slice(job.cursor, job.cursor + 8);
+        job.cursor += batch.length;
+        await Promise.all(
+          batch.map(async (deal) => {
+            const id = num(deal.DealID ?? deal.dealID);
+            if (!id) return;
+            try {
+              const detail = await dealiusGet(`/api/deals/${id}`, key);
+              const record = detail && typeof detail === "object" ? (detail as Record<string, unknown>) : {};
+              const people = Array.isArray(record.InternalBrokers) ? record.InternalBrokers : [];
+              for (const person of people) {
+                if (!person || typeof person !== "object") continue;
+                const broker = person as Record<string, unknown>;
+                const contactId = num(broker.ContactID);
+                if (!contactId) continue;
+                const row = ensure(job, contactId, text(broker.FirstName), text(broker.LastName));
+                row.deals += 1;
+                row.gross += num(broker.CommissionGrossAmount ?? broker.CommissionAmount);
+              }
+            } catch {
+              job.missed += 1;
+            }
+          }),
+        );
+      }
+      const result = boardOf(job);
+      if (result.ok && !result.partial && job.missed === 0) {
+        cache.set(jobKey, { at: Date.now(), data: result });
+        jobs.delete(jobKey);
+      }
       return result;
+    } finally {
+      job.busy = false;
+    }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Dealius could not be reached.";
       return { ok: false, error: message };
