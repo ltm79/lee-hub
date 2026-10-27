@@ -24,6 +24,19 @@ function shownDate(value: string) {
   return `${match[2]}/${match[3]}/${match[1]}`;
 }
 
+function onOurBoard(row: BoardRow) {
+  const title = row.title.toLowerCase();
+  const office = row.officeName.toLowerCase();
+  const titled = title.includes("vice president") || /\bassociates?\b/.test(title);
+  const industry = office.includes("city of industry") || (office.includes("industry") && office.includes("lee"));
+  const central = /la\s*central|l\.a\.?\s*central|los angeles central/.test(office) || (office.includes("central") && office.includes("lee"));
+  return titled && (industry || central);
+}
+
+function ours(rows: BoardRow[]) {
+  return rows.filter(onOurBoard);
+}
+
 function initials(name: string) {
   return name
     .split(/\s+/)
@@ -71,7 +84,7 @@ export function LeaderboardCard() {
     };
   }, [from, to]);
 
-  const top = board?.ok ? board.rows.slice(0, 4) : [];
+  const top = board?.ok ? ours(board.rows).slice(0, 4) : [];
 
   return (
     <section className="mt-8 overflow-hidden rounded-lg border border-line bg-surface">
@@ -122,7 +135,7 @@ export function LeaderboardTable() {
   const [to, setTo] = useState(todayIso);
   const [officeId, setOfficeId] = useState(0);
   const [brokerId, setBrokerId] = useState(0);
-  const [sort, setSort] = useState<"gross" | "volume" | "deals" | "name">("gross");
+  const [sort, setSort] = useState<"gross" | "name">("gross");
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -145,7 +158,7 @@ export function LeaderboardTable() {
   }, [from, to]);
 
   const rows = useMemo(() => {
-    const source = board?.ok ? board.rows : [];
+    const source = board?.ok ? ours(board.rows) : [];
     const filtered = source.filter((row) => {
       if (officeId && row.officeId !== officeId) return false;
       if (brokerId && row.id !== brokerId) return false;
@@ -153,15 +166,18 @@ export function LeaderboardTable() {
     });
     const ranked = [...filtered].sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
-      if (sort === "deals") return b.deals - a.deals || b.gross - a.gross;
-      if (sort === "volume") return b.volume - a.volume || b.gross - a.gross;
-      return b.gross - a.gross || b.volume - a.volume;
+      return b.gross - a.gross || a.name.localeCompare(b.name);
     });
     return ranked;
   }, [board, officeId, brokerId, sort]);
 
-  const brokers = board?.ok ? board.rows : [];
-  const offices = board?.ok ? board.offices : [];
+  const brokers = board?.ok ? ours(board.rows) : [];
+  const offices = (board?.ok ? board.offices : []).filter((office) => {
+    const name = office.name.toLowerCase();
+    const industry = name.includes("city of industry") || (name.includes("industry") && name.includes("lee"));
+    const central = /la\s*central|l\.a\.?\s*central|los angeles central/.test(name) || (name.includes("central") && name.includes("lee"));
+    return industry || central;
+  });
 
   function header(id: typeof sort, label: string, align: "left" | "right") {
     const on = sort === id;
@@ -183,7 +199,7 @@ export function LeaderboardTable() {
     <div>
       <h1 className="text-3xl font-semibold tracking-tight">Leaderboard</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Closed Dealius deals. Volume is the transaction amount, counted for each Lee broker on the deal. Broker gross is that person’s commission.
+        Closed Dealius deals for Associates and Vice Presidents at City of Industry and LA Central. Broker gross is that person’s commission.
       </p>
       <div className="mt-5 flex flex-wrap gap-2">
         <select
@@ -231,12 +247,10 @@ export function LeaderboardTable() {
       ) : null}
       {!loading && board?.ok ? (
         <div className="mt-4 overflow-x-auto rounded-lg border border-line bg-surface">
-          <table className="w-full min-w-[40rem] text-left">
+          <table className="w-full min-w-[24rem] text-left">
             <thead className="border-b border-line">
               <tr>
                 <th className="px-4 py-3">{header("name", "Name", "left")}</th>
-                <th className="px-4 py-3 text-right">{header("deals", "Deals", "right")}</th>
-                <th className="px-4 py-3 text-right">{header("volume", "Closed volume", "right")}</th>
                 <th className="px-4 py-3 text-right">{header("gross", "Broker gross", "right")}</th>
               </tr>
             </thead>
@@ -246,7 +260,7 @@ export function LeaderboardTable() {
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-sm text-muted">
+                  <td colSpan={2} className="px-4 py-8 text-sm text-muted">
                     No closed deals match that filter.
                   </td>
                 </tr>
@@ -271,12 +285,6 @@ function BoardLine({ row }: { row: BoardRow }) {
           </div>
         </div>
       </td>
-      <td className="px-4 py-3 text-right">
-        <span className="inline-grid min-w-8 place-items-center rounded-full bg-crimson px-2 py-0.5 text-sm font-semibold text-white">
-          {row.deals}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-right tabular-nums">{money(row.volume)}</td>
       <td className="px-4 py-3 text-right font-medium tabular-nums">{money(row.gross)}</td>
     </tr>
   );
