@@ -5,6 +5,14 @@ const BASE = "https://leeindustry.dealius.com";
 const PAGE = 50;
 const DEAL_CAP = 800;
 
+export type BoardDeal = {
+  dealId: number;
+  name: string;
+  closed: string;
+  gross: number;
+  split: number;
+};
+
 export type BoardRow = {
   id: number;
   name: string;
@@ -15,6 +23,8 @@ export type BoardRow = {
   deals: number;
   volume: number;
   gross: number;
+  split: number;
+  lines: BoardDeal[];
 };
 
 export type BoardOffice = { id: number; name: string };
@@ -129,6 +139,8 @@ function ensure(job: BoardJob, id: number, first: string, last: string): BoardRo
     deals: 0,
     volume: 0,
     gross: 0,
+    split: 0,
+    lines: [],
   };
   job.totals.set(id, row);
   return row;
@@ -183,7 +195,7 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
     const from = day(data.from, false);
     const to = day(data.to, true);
     if (!from || !to) return { ok: false, error: "Choose a start and end date." };
-    const jobKey = `v3|${data.from}|${data.to}`;
+    const jobKey = `v4|${data.from}|${data.to}`;
     const cached = cache.get(jobKey);
     if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
 
@@ -269,20 +281,22 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
               const shares = people
                 .map((broker) => ({ broker, contactId: num(broker.ContactID), gross: num(broker.CommissionGrossAmount) }))
                 .filter((share) => share.contactId > 0);
-              const stated = shares.reduce((sum, share) => sum + share.gross, 0);
-              const dealGross = num(record.InternalBrokersGrossCommissionAmount);
-              const overweight = dealGross > 0 && stated > dealGross * 1.01;
-              const weight = shares.reduce((sum, share) => sum + num(share.broker.CommissionValue), 0);
               const counted = new Set<number>();
               for (const share of shares) {
                 if (counted.has(share.contactId)) continue;
                 counted.add(share.contactId);
-                const portion = overweight
-                  ? (dealGross * (weight > 0 ? num(share.broker.CommissionValue) / weight : 1 / shares.length))
-                  : share.gross;
+                const split = num(share.broker.CommissionSplitAmount);
                 const row = ensure(job, share.contactId, text(share.broker.FirstName), text(share.broker.LastName));
                 row.deals += 1;
-                row.gross += portion;
+                row.gross += share.gross;
+                row.split += split;
+                row.lines.push({
+                  dealId: id,
+                  name: text(record.DealName) || `Deal ${id}`,
+                  closed: closedDay,
+                  gross: share.gross,
+                  split,
+                });
               }
             } catch {
               job.missed += 1;
