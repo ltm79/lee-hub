@@ -38,11 +38,12 @@ export function DeskFrame({
   }
   const snap = portal.snap;
   const canDeals = snap.member.role !== "staff" || snap.member.deals;
+  const canBoard = snap.member.role === "admin" || snap.member.shareholder;
   const links = canDeals
     ? snap.links
     : snap.links.filter((link) => !/\/(deals|vouchers)(?:\/|$|\?)/.test(link.url));
   return (
-    <Shell section={section} city={snap.office.city} isAdmin={snap.member.role === "admin"} canDeals={canDeals} groups={hubGroups({ ...snap, links })}>
+    <Shell section={section} city={snap.office.city} isAdmin={snap.member.role === "admin"} canDeals={canDeals} canBoard={canBoard} groups={hubGroups({ ...snap, links }, canBoard)}>
       {children(snap, (favoriteIds) => {
         portal.patch((current) =>
           current.status === "ready" ? { ...current, favoriteIds } : current,
