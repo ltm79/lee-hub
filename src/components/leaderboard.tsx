@@ -15,7 +15,12 @@ function todayIso(now = new Date()) {
 }
 
 function money(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function shownDate(value: string) {
@@ -72,13 +77,18 @@ export function LeaderboardCard() {
 
   useEffect(() => {
     let stop = false;
-    void dealiusLeaderboard({ data: { from, to } })
-      .then((result) => {
-        if (!stop) setBoard(result);
-      })
-      .catch(() => {
-        if (!stop) setBoard({ ok: false, error: "The leaderboard could not be loaded." });
-      });
+    function load() {
+      void dealiusLeaderboard({ data: { from, to } })
+        .then((result) => {
+          if (stop) return;
+          setBoard(result);
+          if (result.ok && result.partial) window.setTimeout(load, 400);
+        })
+        .catch(() => {
+          if (!stop) setBoard({ ok: false, error: "The leaderboard could not be loaded." });
+        });
+    }
+    load();
     return () => {
       stop = true;
     };
@@ -87,10 +97,10 @@ export function LeaderboardCard() {
   const top = board?.ok ? ours(board.rows).slice(0, 4) : [];
 
   return (
-    <section className="mt-8 overflow-hidden rounded-lg border border-line bg-surface">
+    <section className="overflow-hidden rounded-lg border border-line bg-surface">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
-          <h2 className="text-lg font-semibold text-crimson">Leaderboard</h2>
+          <h2 className="text-lg font-semibold text-crimson">Dealius Leaderboard</h2>
           <p className="text-xs text-muted">
             {shownDate(from)} – {shownDate(to)}
           </p>
@@ -142,16 +152,21 @@ export function LeaderboardTable() {
   useEffect(() => {
     let stop = false;
     setLoading(true);
-    void dealiusLeaderboard({ data: { from, to } })
-      .then((result) => {
-        if (!stop) setBoard(result);
-      })
-      .catch(() => {
-        if (!stop) setBoard({ ok: false, error: "The leaderboard could not be loaded." });
-      })
-      .finally(() => {
-        if (!stop) setLoading(false);
-      });
+    function load() {
+      void dealiusLeaderboard({ data: { from, to } })
+        .then((result) => {
+          if (stop) return;
+          setBoard(result);
+          setLoading(Boolean(result.ok && result.partial));
+          if (result.ok && result.partial) window.setTimeout(load, 400);
+        })
+        .catch(() => {
+          if (stop) return;
+          setBoard({ ok: false, error: "The leaderboard could not be loaded." });
+          setLoading(false);
+        });
+    }
+    load();
     return () => {
       stop = true;
     };
@@ -197,7 +212,7 @@ export function LeaderboardTable() {
 
   return (
     <div>
-      <h1 className="text-3xl font-semibold tracking-tight">Leaderboard</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Dealius Leaderboard</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
         Closed Dealius deals for Associates and Vice Presidents at City of Industry and LA Central. Broker gross is that person’s commission.
       </p>
@@ -240,12 +255,12 @@ export function LeaderboardTable() {
       <p className="mt-3 text-sm font-medium text-ink">
         {shownDate(from)} – {shownDate(to)}
       </p>
-      {loading ? <p className="mt-6 text-sm text-muted">Loading closed deals from Dealius…</p> : null}
-      {!loading && board && !board.ok ? <p className="mt-6 text-sm text-muted">{board.error}</p> : null}
+      {loading ? <p className="mt-6 text-sm text-muted">Totaling closed deals from Dealius…</p> : null}
+      {board && !board.ok ? <p className="mt-6 text-sm text-muted">{board.error}</p> : null}
       {!loading && board?.ok && board.capped ? (
         <p className="mt-3 text-sm text-muted">This range has more closed deals than the board can total in one pass.</p>
       ) : null}
-      {!loading && board?.ok ? (
+      {board?.ok ? (
         <div className="mt-4 overflow-x-auto rounded-lg border border-line bg-surface">
           <table className="w-full min-w-[24rem] text-left">
             <thead className="border-b border-line">
@@ -258,7 +273,7 @@ export function LeaderboardTable() {
               {rows.map((row) => (
                 <BoardLine key={row.id} row={row} />
               ))}
-              {rows.length === 0 ? (
+              {rows.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={2} className="px-4 py-8 text-sm text-muted">
                     No closed deals match that filter.
