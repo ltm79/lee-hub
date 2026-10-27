@@ -102,7 +102,7 @@ function iconOf(value: unknown): string {
 }
 
 type UserRow = { id: string; name: string; email: string };
-type MemberRow = { role: string; active: unknown; title: string; deals: unknown };
+type MemberRow = { role: string; active: unknown; title: string; deals: unknown; shareholder: unknown };
 
 async function readUser(userId: string) {
   const db = await getDb();
@@ -117,13 +117,13 @@ async function ensureMember(userId: string): Promise<
   | { status: "missing" }
   | { status: "pending"; name: string; email: string }
   | { status: "disabled"; name: string; email: string }
-  | { status: "ready"; name: string; email: string; role: MemberRole; title: string; deals: boolean }
+  | { status: "ready"; name: string; email: string; role: MemberRole; title: string; deals: boolean; shareholder: boolean }
 > {
   const { db, user } = await readUser(userId);
   if (!user) return { status: "missing" };
 
   const existing = await db<MemberRow>`
-    select role, active, title, deals from members where user_id = ${userId}
+    select role, active, title, deals, shareholder from members where user_id = ${userId}
   `;
   const member = existing[0];
   if (member) {
@@ -138,6 +138,7 @@ async function ensureMember(userId: string): Promise<
       role,
       title: member.title ?? "",
       deals: flag(member.deals),
+      shareholder: flag(member.shareholder),
     };
   }
 
@@ -155,6 +156,7 @@ async function ensureMember(userId: string): Promise<
     role: "admin",
     title: "Administrator",
     deals: true,
+    shareholder: false,
   };
 }
 
@@ -217,13 +219,14 @@ export const loadPortal = createServerFn({ method: "GET" })
     }
 
     const db = await getDb();
-    const offices = await db<{ name: string; city: string; tagline: string }>`
-      select name, city, tagline from office where id = 'main'
+    const offices = await db<{ name: string; city: string; tagline: string; leaderboard_order: unknown }>`
+      select name, city, tagline, leaderboard_order from office where id = 'main'
     `;
     const office = offices[0] ?? {
       name: "Lee & Associates",
       city: "",
       tagline: "Research, deals, and the systems this office runs on.",
+      leaderboard_order: 0,
     };
     const categories = await db<{ id: string; name: string; sort_order: unknown }>`
       select id, name, sort_order from categories order by sort_order, name
@@ -301,11 +304,13 @@ export const loadPortal = createServerFn({ method: "GET" })
         name: access.name,
         email: access.email,
         deals: access.deals,
+        shareholder: access.shareholder,
       },
       categories: categories.map(mapCategory),
       links: visible,
       favoriteIds: favorites.map((row) => row.link_id),
       people: roster,
+      leaderboardOrder: num(office.leaderboard_order),
     };
   });
 
@@ -357,6 +362,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
       role: string | null;
       active: unknown;
       deals: unknown;
+      shareholder: unknown;
       has_password: unknown;
     }>`
       select
@@ -368,6 +374,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         m.role,
         m.active,
         m.deals,
+        m.shareholder,
         exists (
           select 1 from "account" a
           where a."userId" = u.id and a."providerId" = 'credential'
@@ -377,6 +384,9 @@ export const loadAdmin = createServerFn({ method: "GET" })
       order by
         case when m.role = 'admin' then 0 when m.user_id is null then 2 else 1 end,
         u.name
+    `;
+    const settings = await db<{ leaderboard_order: unknown }>`
+      select leaderboard_order from office where id = 'main'
     `;
     const categories = await db<{ id: string; name: string; sort_order: unknown }>`
       select id, name, sort_order from categories order by sort_order, name
@@ -419,6 +429,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         active: pending ? false : flag(person.active),
         pending,
         deals: flag(person.deals),
+        shareholder: flag(person.shareholder),
         hasPassword: flag(person.has_password),
       };
     });
@@ -428,6 +439,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         people: roster,
         categories: categories.map(mapCategory),
         links: links.map(mapLink),
+        leaderboardOrder: num(settings[0]?.leaderboard_order),
       },
     };
   });
@@ -474,6 +486,7 @@ export const createLogin = createServerFn({ method: "POST" })
       office?: string;
       agentIds?: string[];
       deals?: boolean;
+      shareholder?: boolean;
     }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
@@ -522,11 +535,12 @@ export const createLogin = createServerFn({ method: "POST" })
     if (passwordError) return { ok: false, error: passwordError };
 
     const deals = role === "staff" && Boolean(data?.deals);
+    const shareholder = role === "agent" && Boolean(data?.shareholder);
     await db`
-      insert into members (user_id, role, active, title, office, deals)
-      values (${userId}, ${role}, true, ${title}, ${office}, ${deals})
+      insert into members (user_id, role, active, title, office, deals, shareholder)
+      values (${userId}, ${role}, true, ${title}, ${office}, ${deals}, ${shareholder})
       on conflict (user_id) do update
-      set role = ${role}, active = true, title = ${title}, office = ${office}, deals = ${deals}
+      set role = ${role}, active = true, title = ${title}, office = ${office}, deals = ${deals}, shareholder = ${shareholder}
     `;
     await db`
       update desk_members
@@ -540,7 +554,7 @@ export const createLogin = createServerFn({ method: "POST" })
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; agentIds?: string[]; deals?: boolean }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; agentIds?: string[]; deals?: boolean; shareholder?: boolean }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -595,12 +609,13 @@ export const updateMember = createServerFn({ method: "POST" })
     }
 
     const deals = role === "staff" && Boolean(data?.deals);
+    const shareholder = role === "agent" && Boolean(data?.shareholder);
     if (office) {
       await db`
-        insert into members (user_id, role, active, title, office, deals)
-        values (${userId}, ${role}, ${active}, ${title}, ${office}, ${deals})
+        insert into members (user_id, role, active, title, office, deals, shareholder)
+        values (${userId}, ${role}, ${active}, ${title}, ${office}, ${deals}, ${shareholder})
         on conflict (user_id) do update
-        set role = ${role}, active = ${active}, title = ${title}, office = ${office}, deals = ${deals}
+        set role = ${role}, active = ${active}, title = ${title}, office = ${office}, deals = ${deals}, shareholder = ${shareholder}
       `;
       await db`
         update desk_members
@@ -609,10 +624,10 @@ export const updateMember = createServerFn({ method: "POST" })
       `;
     } else {
       await db`
-        insert into members (user_id, role, active, title, deals)
-        values (${userId}, ${role}, ${active}, ${title}, ${deals})
+        insert into members (user_id, role, active, title, deals, shareholder)
+        values (${userId}, ${role}, ${active}, ${title}, ${deals}, ${shareholder})
         on conflict (user_id) do update
-        set role = ${role}, active = ${active}, title = ${title}, deals = ${deals}
+        set role = ${role}, active = ${active}, title = ${title}, deals = ${deals}, shareholder = ${shareholder}
       `;
       await db`
         update desk_members
@@ -759,16 +774,28 @@ export const moveCategory = createServerFn({ method: "POST" })
     const rows = await db<{ id: string; sort_order: unknown }>`
       select id, sort_order from categories order by sort_order, name
     `;
-    const index = rows.findIndex((row) => row.id === id);
-    const current = rows[index];
-    const swapWith = rows[direction === "up" ? index - 1 : index + 1];
+    const settings = await db<{ leaderboard_order: unknown }>`
+      select leaderboard_order from office where id = 'main'
+    `;
+    const items = [
+      ...rows.map((row) => ({ id: row.id, order: num(row.sort_order) })),
+      { id: "leaderboard", order: num(settings[0]?.leaderboard_order) },
+    ].sort((a, b) => a.order - b.order || (a.id === "leaderboard" ? -1 : 1));
+    const index = items.findIndex((row) => row.id === id);
+    const current = items[index];
+    const swapWith = items[direction === "up" ? index - 1 : index + 1];
     if (!current || !swapWith) return { ok: true };
-    const a = num(current.sort_order);
-    const b = num(swapWith.sort_order);
-    const nextA = a === b ? (direction === "up" ? b - 1 : b + 1) : b;
-    const nextB = a === b ? a : a;
-    await db`update categories set sort_order = ${nextA} where id = ${id}`;
-    await db`update categories set sort_order = ${nextB} where id = ${swapWith.id}`;
+    const nextA = current.order === swapWith.order ? (direction === "up" ? swapWith.order - 1 : swapWith.order + 1) : swapWith.order;
+    const nextB = current.order === swapWith.order ? current.order : current.order;
+    async function writeOrder(itemId: string, order: number) {
+      if (itemId === "leaderboard") {
+        await db`update office set leaderboard_order = ${order} where id = 'main'`;
+        return;
+      }
+      await db`update categories set sort_order = ${order} where id = ${itemId}`;
+    }
+    await writeOrder(current.id, nextA);
+    await writeOrder(swapWith.id, nextB);
     return { ok: true };
   });
 
