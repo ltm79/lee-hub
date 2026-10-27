@@ -79,8 +79,13 @@ export function Directory({
     : snap.links.filter((link) => !/\/(deals|vouchers)(?:\/|$|\?)/.test(link.url));
   const pinned = links.filter((link) => snap.favoriteIds.includes(link.id));
   const market = snap.categories.some(isMarket);
+  const canBoard = snap.member.role === "admin" || snap.member.shareholder;
   const canEdit = snap.member.role === "admin";
-  const tones = new Map(hubGroups({ ...snap, links }).map((group) => [group.id, group.tone]));
+  const tones = new Map(hubGroups({ ...snap, links }, canBoard).map((group) => [group.id, group.tone]));
+  const slots = [
+    ...snap.categories.map((category) => ({ kind: "category" as const, category, order: category.sortOrder })),
+    ...(canBoard ? [{ kind: "board" as const, category: null, order: snap.leaderboardOrder }] : []),
+  ].sort((a, b) => a.order - b.order || (a.kind === "board" ? -1 : 1));
 
   async function onToggle(id: string) {
     const has = snap.favoriteIds.includes(id);
@@ -103,9 +108,8 @@ export function Directory({
         <p className="mt-2 max-w-xl text-muted">{snap.office.tagline}</p>
       ) : null}
       <LocalConditions city={snap.office.city} />
-      <LeaderboardCard />
 
-      {links.length === 0 ? (
+      {links.length === 0 && !canBoard ? (
         <p className="mt-10 text-muted">
           No services have been published yet.
         </p>
@@ -125,7 +129,15 @@ export function Directory({
         </section>
       ) : null}
 
-      {snap.categories.map((category) => {
+      {slots.map((slot) => {
+        if (slot.kind === "board") {
+          return (
+            <section key="dealius" id="group-dealius" className="mt-10 scroll-mt-8">
+              <LeaderboardCard />
+            </section>
+          );
+        }
+        const category = slot.category;
         const items = links.filter((link) => link.categoryId === category.id);
         const showFiles = isMarket(category);
         if (items.length === 0 && !showFiles) return null;
