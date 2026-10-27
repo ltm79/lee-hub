@@ -342,9 +342,46 @@ function LinksPanel({
   onEdit: (draft: LinkDraft) => void;
   onRun: (action: () => Promise<ActionResult>, success: string) => Promise<boolean>;
 }) {
+  const ordered = [
+    ...data.categories.map((category) => ({ kind: "category" as const, id: category.id, order: category.sortOrder })),
+    { kind: "board" as const, id: "leaderboard", order: data.leaderboardOrder },
+  ].sort((a, b) => a.order - b.order || (a.kind === "board" ? -1 : 1));
+
   return (
     <div className="mt-8 flex flex-col gap-8">
-      {data.categories.map((category, index) => {
+      {ordered.map((item, index) => {
+        if (item.kind === "board") {
+          return (
+            <section key="leaderboard" className="rounded-lg border border-line bg-surface p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Dealius Leaderboard</h2>
+                  <p className="text-sm text-muted">Shown to shareholders. Move it up or down with the groups.</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    aria-label="Move Dealius Leaderboard up"
+                    disabled={busy || index === 0}
+                    onClick={() => void onRun(() => moveCategory({ data: { id: "leaderboard", direction: "up" } }), "Leaderboard moved.")}
+                  >
+                    <ChevronUp className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    aria-label="Move Dealius Leaderboard down"
+                    disabled={busy || index === ordered.length - 1}
+                    onClick={() => void onRun(() => moveCategory({ data: { id: "leaderboard", direction: "down" } }), "Leaderboard moved.")}
+                  >
+                    <ChevronDown className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </section>
+          );
+        }
+        const category = data.categories.find((entry) => entry.id === item.id);
+        if (!category) return null;
         const links = data.links.filter((link) => link.categoryId === category.id);
         return (
           <section key={category.id}>
@@ -390,7 +427,7 @@ function LinksPanel({
                 <Button
                   variant="ghost"
                   aria-label={`Move ${category.name} down`}
-                  disabled={busy || index === data.categories.length - 1}
+                  disabled={busy || index === ordered.length - 1}
                   onClick={() => void onRun(() => moveCategory({ data: { id: category.id, direction: "down" } }), "Group order updated.")}
                 >
                   <ChevronDown className="size-4" />
@@ -632,7 +669,9 @@ function PeoplePanel({
                                 .join(", ") || "no agents linked"
                             }`
                           : ""
-                      }${person.role === "staff" && person.deals ? " · Deals" : ""}${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
+                      }${person.role === "staff" && person.deals ? " · Deals" : ""}${
+                        person.role === "agent" && person.shareholder ? " · Shareholder" : ""
+                      }${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
                   {person.hasPassword ? "" : " · No password yet"}
                 </p>
               </div>
@@ -775,6 +814,7 @@ function LoginDialog({
     office: string;
     agentIds: string[];
     deals: boolean;
+    shareholder: boolean;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -785,6 +825,7 @@ function LoginDialog({
   const [office, setOffice] = useState("");
   const [agentIds, setAgentIds] = useState<string[]>([]);
   const [deals, setDeals] = useState(false);
+  const [shareholder, setShareholder] = useState(false);
 
   return (
     <Modal
@@ -797,7 +838,7 @@ function LoginDialog({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onCreate({ name, email, password, title, role, office, agentIds, deals });
+          void onCreate({ name, email, password, title, role, office, agentIds, deals, shareholder });
         }}
       >
         <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
@@ -843,6 +884,17 @@ function LoginDialog({
             ))}
           </select>
         </label>
+        {role === "agent" ? (
+          <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={shareholder}
+              onChange={(event) => setShareholder(event.target.checked)}
+              className="size-5 accent-crimson"
+            />
+            Shareholder — can see the Dealius leaderboard
+          </label>
+        ) : null}
         {role === "assistant" ? <AgentChecks agents={agents} selected={agentIds} onChange={setAgentIds} /> : null}
         {role === "staff" ? (
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
@@ -895,6 +947,7 @@ function PersonDialog({
     email: string;
     agentIds: string[];
     deals: boolean;
+    shareholder: boolean;
   }) => Promise<void>;
 }) {
   const [email, setEmail] = useState(person?.email ?? "");
@@ -903,6 +956,7 @@ function PersonDialog({
   const [office, setOffice] = useState(person?.office ?? "");
   const [agentIds, setAgentIds] = useState<string[]>(person?.agentIds ?? []);
   const [deals, setDeals] = useState(person?.deals ?? false);
+  const [shareholder, setShareholder] = useState(person?.shareholder ?? false);
   const [active, setActive] = useState(person?.active ?? true);
 
   useEffect(() => {
@@ -913,6 +967,7 @@ function PersonDialog({
     setOffice(person.office ?? "");
     setAgentIds(person.agentIds ?? []);
     setDeals(Boolean(person.deals));
+    setShareholder(Boolean(person.shareholder));
     setActive(person.active);
   }, [person]);
 
@@ -923,7 +978,7 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, role, active, title, office, email, agentIds, deals });
+            void onSave({ userId: person.userId, role, active, title, office, email, agentIds, deals, shareholder });
           }}
         >
           <TextField
@@ -969,6 +1024,17 @@ function PersonDialog({
               selected={agentIds}
               onChange={setAgentIds}
             />
+          ) : null}
+          {role === "agent" ? (
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={shareholder}
+                onChange={(event) => setShareholder(event.target.checked)}
+                className="size-5 accent-crimson"
+              />
+              Shareholder — can see the Dealius leaderboard
+            </label>
           ) : null}
           {role === "staff" ? (
             <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
