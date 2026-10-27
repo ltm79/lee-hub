@@ -215,7 +215,7 @@ export function LeaderboardTable() {
     <div>
       <h1 className="text-3xl font-semibold tracking-tight">Dealius Leaderboard</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Closed deals only, by actual close date. Open and pending deals are left out. Broker gross is that person's commission on those closed deals.
+        Closed deals only, by actual close date. Click a name to see the deals. Commission gross is before the house split.
       </p>
       <div className="mt-5 flex flex-wrap gap-2">
         <select
@@ -290,18 +290,48 @@ export function LeaderboardTable() {
 }
 
 function BoardLine({ row }: { row: BoardRow }) {
+  const [open, setOpen] = useState(false);
+  const lines = [...row.lines].sort((a, b) => b.gross - a.gross || a.name.localeCompare(b.name));
   return (
-    <tr className="border-t border-line">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Face name={row.name} photo={row.photo} />
-          <div className="min-w-0">
-            <p className="truncate font-medium">{row.name}</p>
-            <p className="truncate text-xs text-muted">{row.title || row.officeName}</p>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right font-medium tabular-nums">{money(row.gross)}</td>
-    </tr>
+    <>
+      <tr className="border-t border-line">
+        <td className="px-4 py-3">
+          <button type="button" onClick={() => setOpen((value) => !value)} className="flex items-center gap-3 text-left">
+            <Face name={row.name} photo={row.photo} />
+            <div className="min-w-0">
+              <p className="truncate font-medium">{row.name}</p>
+              <p className="truncate text-xs text-muted">
+                {row.title || row.officeName}
+                {lines.length > 0 ? ` · ${lines.length} closed deals` : ""}
+              </p>
+            </div>
+          </button>
+        </td>
+        <td className="px-4 py-3 text-right font-medium tabular-nums">{money(row.gross)}</td>
+      </tr>
+      {open ? (
+        <tr className="border-t border-line bg-paper">
+          <td colSpan={2} className="px-4 py-3">
+            <p className="text-xs text-muted">
+              Commission gross {money(row.gross)} · After house split {money(row.split)}
+            </p>
+            <ul className="mt-2 flex flex-col">
+              {lines.map((line) => (
+                <li key={line.dealId} className="flex items-baseline justify-between gap-3 border-t border-line py-2 text-sm first:border-t-0">
+                  <span className="min-w-0">
+                    <span className="block truncate">{line.name}</span>
+                    <span className="text-xs text-muted">Closed {shownDate(line.closed)}</span>
+                  </span>
+                  <span className="shrink-0 text-right tabular-nums">
+                    <span className="block">{money(line.gross)}</span>
+                    <span className="block text-xs text-muted">Split {money(line.split)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
