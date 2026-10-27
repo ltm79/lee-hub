@@ -2,6 +2,7 @@ import { Star } from "lucide-react";
 import { ServiceIcon } from "@/components/icons";
 import { hubGroups, toneFor } from "@/components/shell";
 import { LocalConditions } from "@/components/local-conditions";
+import { LeaderboardCard } from "@/components/leaderboard";
 import { MarketLibrary } from "@/components/market-library";
 import { toggleFavorite } from "@/lib/portal.functions";
 import type { DeskLink, PortalReady } from "@/lib/portal.types";
@@ -102,6 +103,7 @@ export function Directory({
         <p className="mt-2 max-w-xl text-muted">{snap.office.tagline}</p>
       ) : null}
       <LocalConditions city={snap.office.city} />
+      <LeaderboardCard />
 
       {links.length === 0 ? (
         <p className="mt-10 text-muted">
