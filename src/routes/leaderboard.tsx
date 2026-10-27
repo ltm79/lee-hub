@@ -5,10 +5,20 @@ import { LeaderboardTable } from "@/components/leaderboard";
 export const Route = createFileRoute("/leaderboard")({
   component: LeaderboardPage,
   head: () => ({
-    meta: [{ title: "Leaderboard · Lee Hub" }],
+    meta: [{ title: "Dealius Leaderboard · Lee Hub" }],
   }),
 });
 
 function LeaderboardPage() {
-  return <DeskFrame section="board">{() => <LeaderboardTable />}</DeskFrame>;
+  return (
+    <DeskFrame section="board">
+      {(snap) =>
+        snap.member.role === "admin" || snap.member.shareholder ? (
+          <LeaderboardTable />
+        ) : (
+          <p className="text-muted">The Dealius leaderboard is for shareholders.</p>
+        )
+      }
+    </DeskFrame>
+  );
 }
