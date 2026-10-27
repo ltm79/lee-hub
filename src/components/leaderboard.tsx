@@ -111,8 +111,9 @@ export function LeaderboardCard() {
       </div>
       {!board ? <p className="px-4 py-6 text-sm text-muted">Loading closed deals from Dealius…</p> : null}
       {board && !board.ok ? <p className="px-4 py-6 text-sm text-muted">{board.error}</p> : null}
-      {board?.ok && top.length === 0 ? <p className="px-4 py-6 text-sm text-muted">No closed deals in this range.</p> : null}
-      {top.length > 0 ? (
+      {board?.ok && top.length === 0 && !board.partial ? <p className="px-4 py-6 text-sm text-muted">No closed deals in this range.</p> : null}
+      {board?.ok && board.partial ? <p className="px-4 py-6 text-sm text-muted">Totaling closed deals from Dealius…</p> : null}
+      {top.length > 0 && board?.ok && !board.partial ? (
         <ol>
           {top.map((row, index) => (
             <li key={row.id} className="flex items-center gap-3 border-t border-line px-4 py-3 first:border-t-0">
@@ -214,7 +215,7 @@ export function LeaderboardTable() {
     <div>
       <h1 className="text-3xl font-semibold tracking-tight">Dealius Leaderboard</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Closed Dealius deals for Associates and Vice Presidents at City of Industry and LA Central. Broker gross is that person’s commission.
+        Closed deals only, by actual close date. Open and pending deals are left out. Broker gross is that person's commission on those closed deals.
       </p>
       <div className="mt-5 flex flex-wrap gap-2">
         <select
