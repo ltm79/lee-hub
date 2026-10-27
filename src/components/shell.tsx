@@ -8,24 +8,39 @@ export type DeskSection = "desk" | "deals" | "people" | "admin" | "board";
 
 export type HubGroup = { id: string; name: string; tone: number };
 
-export function hubGroups(snap: {
-  favoriteIds: string[];
-  categories: { id: string; name: string }[];
-  links: { categoryId: string }[];
-}): HubGroup[] {
+export function hubGroups(
+  snap: {
+    favoriteIds: string[];
+    categories: { id: string; name: string; sortOrder?: number }[];
+    links: { categoryId: string }[];
+    leaderboardOrder?: number;
+  },
+  showBoard = false,
+): HubGroup[] {
   const groups: HubGroup[] = [];
   let tone = 0;
   if (snap.favoriteIds.length > 0) {
     groups.push({ id: "pinned", name: "Pinned", tone });
     tone += 1;
   }
+  let inserted = false;
+  const boardOrder = snap.leaderboardOrder ?? 0;
   for (const category of snap.categories) {
     const hasLinks = snap.links.some((link) => link.categoryId === category.id);
     const market = category.id === "research" || category.name.trim().toLowerCase() === "market research";
-    if (hasLinks || market) {
+    const visible = hasLinks || market;
+    if (showBoard && !inserted && visible && boardOrder <= (category.sortOrder ?? 0)) {
+      groups.push({ id: "dealius", name: "Dealius Leaderboard", tone });
+      tone += 1;
+      inserted = true;
+    }
+    if (visible) {
       groups.push({ id: category.id, name: category.name, tone });
       tone += 1;
     }
+  }
+  if (showBoard && !inserted) {
+    groups.push({ id: "dealius", name: "Dealius Leaderboard", tone });
   }
   const hasMarket = snap.categories.some(
     (category) => category.id === "research" || category.name.trim().toLowerCase() === "market research",
@@ -37,7 +52,7 @@ export function hubGroups(snap: {
 const NAV: { id: DeskSection; label: string; to: "/" | "/deals" | "/leaderboard" | "/people" | "/admin"; icon: typeof LayoutGrid }[] = [
   { id: "desk", label: "Hub", to: "/", icon: LayoutGrid },
   { id: "deals", label: "Deals", to: "/deals", icon: Briefcase },
-  { id: "board", label: "Leaderboard", to: "/leaderboard", icon: Trophy },
+  { id: "board", label: "Dealius Leaderboard", to: "/leaderboard", icon: Trophy },
   { id: "people", label: "People", to: "/people", icon: Users },
   { id: "admin", label: "Admin", to: "/admin", icon: Settings },
 ];
@@ -57,6 +72,7 @@ function NavList({
   section,
   isAdmin,
   canDeals,
+  canBoard,
   groups,
   activeGroup,
   onNavigate,
@@ -64,6 +80,7 @@ function NavList({
   section: DeskSection;
   isAdmin: boolean;
   canDeals: boolean;
+  canBoard: boolean;
   groups: HubGroup[];
   activeGroup: string;
   onNavigate?: () => void;
@@ -79,7 +96,7 @@ function NavList({
 
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.filter((item) => (item.id !== "admin" || isAdmin) && (item.id !== "deals" || canDeals)).map((item) => {
+      {NAV.filter((item) => (item.id !== "admin" || isAdmin) && (item.id !== "deals" || canDeals) && (item.id !== "board" || canBoard)).map((item) => {
         const Icon = item.icon;
         const active = item.id === section;
         return (
@@ -154,6 +171,7 @@ export function Shell({
   city,
   isAdmin,
   canDeals,
+  canBoard,
   groups = [],
   children,
 }: {
@@ -161,6 +179,7 @@ export function Shell({
   city: string;
   isAdmin: boolean;
   canDeals: boolean;
+  canBoard: boolean;
   groups?: HubGroup[];
   children: ReactNode;
 }) {
@@ -194,7 +213,7 @@ export function Shell({
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 text-ink md:flex">
         <BrandLockup city={city} variant="rail" />
         <div className="mt-8 min-h-0 flex-1 overflow-y-auto">
-          <NavList section={section} isAdmin={isAdmin} canDeals={canDeals} groups={groups} activeGroup={activeGroup} />
+          <NavList section={section} isAdmin={isAdmin} canDeals={canDeals} canBoard={canBoard} groups={groups} activeGroup={activeGroup} />
         </div>
         <div className="mt-4 border-t border-line pt-4 [&_span]:max-w-36 [&_span]:truncate">
           <UserButton />
@@ -215,7 +234,7 @@ export function Shell({
         </header>
         {open ? (
           <div className="border-b border-line bg-surface px-4 py-4 text-ink md:hidden">
-            <NavList section={section} isAdmin={isAdmin} canDeals={canDeals} groups={groups} activeGroup={activeGroup} onNavigate={() => setOpen(false)} />
+            <NavList section={section} isAdmin={isAdmin} canDeals={canDeals} canBoard={canBoard} groups={groups} activeGroup={activeGroup} onNavigate={() => setOpen(false)} />
             <div className="mt-4 border-t border-line pt-4 [&_span]:truncate">
               <UserButton />
             </div>
