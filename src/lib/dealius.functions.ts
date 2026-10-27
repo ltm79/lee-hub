@@ -146,6 +146,25 @@ function boardOf(job: BoardJob): Leaderboard {
   };
 }
 
+function calendarDay(value: unknown): string {
+  const raw = text(value);
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
+function closedStatus(value: unknown): boolean {
+  return text(value).toLowerCase() === "closed";
+}
+
 function day(value: string, end: boolean): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return "";
@@ -164,7 +183,7 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
     const from = day(data.from, false);
     const to = day(data.to, true);
     if (!from || !to) return { ok: false, error: "Choose a start and end date." };
-    const jobKey = `v2|${data.from}|${data.to}`;
+    const jobKey = `v3|${data.from}|${data.to}`;
     const cached = cache.get(jobKey);
     if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
 
@@ -176,8 +195,14 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
       }
       if (!job) {
       const relevance = rowsOf(await dealiusGet("/api/lookup/dealrelevancetypes", key));
-      const closed = relevance.find((item) => /closed/i.test(text(item.Text ?? item.text)));
+      const closed =
+        relevance.find((item) => text(item.Text ?? item.text).toLowerCase() === "closed") ??
+        relevance.find((item) => {
+          const name = text(item.Text ?? item.text).toLowerCase();
+          return name.includes("closed") && !name.includes("pending") && !name.includes("dead");
+        });
       const closedId = num(closed?.ID ?? closed?.Id ?? closed?.id);
+      if (!closedId) return { ok: false, error: "Dealius did not return a Closed deal list." };
       const offices = rowsOf(await dealiusGet("/api/lookup/offices", key))
         .map((item) => ({ id: num(item.ID ?? item.Id ?? item.id), name: text(item.Text ?? item.text) }))
         .filter((item) => item.id && item.name);
@@ -193,10 +218,16 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
       query.set("DateTo", to);
       const deals = await everyPage(`/api/deals?${query.toString()}`, key, DEAL_CAP);
       const capped = deals.length >= DEAL_CAP;
+      const seen = new Set<number>();
       const closedDeals = deals.filter((deal) => {
-        const closedOn = text(deal.ActualCloseDate);
-        const closedDay = /^(\d{4}-\d{2}-\d{2})/.exec(closedOn)?.[1] ?? "";
-        return Boolean(closedDay) && closedDay >= data.from && closedDay <= data.to;
+        const id = num(deal.DealID ?? deal.dealID);
+        if (!id || seen.has(id)) return false;
+        const status = text(deal.DealStatusName);
+        if (status && !closedStatus(status)) return false;
+        const closedDay = calendarDay(deal.ActualCloseDate);
+        if (!closedDay || closedDay < data.from || closedDay > data.to) return false;
+        seen.add(id);
+        return true;
       });
       job = {
         at: Date.now(),
@@ -229,15 +260,29 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
             try {
               const detail = await dealiusGet(`/api/deals/${id}`, key);
               const record = detail && typeof detail === "object" ? (detail as Record<string, unknown>) : {};
-              const people = Array.isArray(record.InternalBrokers) ? record.InternalBrokers : [];
-              for (const person of people) {
-                if (!person || typeof person !== "object") continue;
-                const broker = person as Record<string, unknown>;
-                const contactId = num(broker.ContactID);
-                if (!contactId) continue;
-                const row = ensure(job, contactId, text(broker.FirstName), text(broker.LastName));
+              if (!closedStatus(record.DealStatusName)) return;
+              const closedDay = calendarDay(record.ActualCloseDate) || calendarDay(deal.ActualCloseDate);
+              if (!closedDay || closedDay < data.from || closedDay > data.to) return;
+              const people = (Array.isArray(record.InternalBrokers) ? record.InternalBrokers : []).filter(
+                (person): person is Record<string, unknown> => Boolean(person) && typeof person === "object",
+              );
+              const shares = people
+                .map((broker) => ({ broker, contactId: num(broker.ContactID), gross: num(broker.CommissionGrossAmount) }))
+                .filter((share) => share.contactId > 0);
+              const stated = shares.reduce((sum, share) => sum + share.gross, 0);
+              const dealGross = num(record.InternalBrokersGrossCommissionAmount);
+              const overweight = dealGross > 0 && stated > dealGross * 1.01;
+              const weight = shares.reduce((sum, share) => sum + num(share.broker.CommissionValue), 0);
+              const counted = new Set<number>();
+              for (const share of shares) {
+                if (counted.has(share.contactId)) continue;
+                counted.add(share.contactId);
+                const portion = overweight
+                  ? (dealGross * (weight > 0 ? num(share.broker.CommissionValue) / weight : 1 / shares.length))
+                  : share.gross;
+                const row = ensure(job, share.contactId, text(share.broker.FirstName), text(share.broker.LastName));
                 row.deals += 1;
-                row.gross += num(broker.CommissionGrossAmount ?? broker.CommissionAmount);
+                row.gross += portion;
               }
             } catch {
               job.missed += 1;
