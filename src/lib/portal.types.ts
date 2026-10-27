@@ -72,11 +72,13 @@ export type PortalReady = {
     name: string;
     email: string;
     deals: boolean;
+    shareholder: boolean;
   };
   categories: Category[];
   links: DeskLink[];
   favoriteIds: string[];
   people: RosterPerson[];
+  leaderboardOrder: number;
 };
 
 export type PortalSnapshot =
@@ -96,6 +98,7 @@ export type AdminPerson = {
   agentIds: string[];
   role: MemberRole | null;
   deals: boolean;
+  shareholder: boolean;
   active: boolean;
   pending: boolean;
   hasPassword: boolean;
@@ -105,6 +108,7 @@ export type AdminSnapshot = {
   people: AdminPerson[];
   categories: Category[];
   links: AdminLink[];
+  leaderboardOrder: number;
 };
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
