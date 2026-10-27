@@ -215,7 +215,7 @@ export function LeaderboardTable() {
     <div>
       <h1 className="text-3xl font-semibold tracking-tight">Dealius Leaderboard</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Closed deals only, by actual close date. Click a name to see the deals. Commission gross is before the house split.
+        Closed deals with an invoice paid date in this range. Open and pending deals are left out.
       </p>
       <div className="mt-5 flex flex-wrap gap-2">
         <select
@@ -258,6 +258,7 @@ export function LeaderboardTable() {
       </p>
       {loading ? <p className="mt-6 text-sm text-muted">Totaling closed deals from Dealius…</p> : null}
       {board && !board.ok ? <p className="mt-6 text-sm text-muted">{board.error}</p> : null}
+      {board?.ok && board.note ? <p className="mt-3 text-sm text-muted">{board.note}</p> : null}
       {!loading && board?.ok && board.capped ? (
         <p className="mt-3 text-sm text-muted">This range has more closed deals than the board can total in one pass.</p>
       ) : null}
@@ -320,7 +321,7 @@ function BoardLine({ row }: { row: BoardRow }) {
                 <li key={line.dealId} className="flex items-baseline justify-between gap-3 border-t border-line py-2 text-sm first:border-t-0">
                   <span className="min-w-0">
                     <span className="block truncate">{line.name}</span>
-                    <span className="text-xs text-muted">Closed {shownDate(line.closed)}</span>
+                    <span className="text-xs text-muted">Invoice paid {shownDate(line.closed)}</span>
                   </span>
                   <span className="shrink-0 text-right tabular-nums">
                     <span className="block">{money(line.gross)}</span>
