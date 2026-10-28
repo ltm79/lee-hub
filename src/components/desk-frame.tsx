@@ -3,6 +3,7 @@ import { RedirectToSignIn } from "@/lib/auth/gates";
 import { DeskLoading, GateState } from "@/components/desk-states";
 import { Shell, hubGroups, type DeskSection } from "@/components/shell";
 import { usePortal } from "@/components/use-portal";
+import { LEADERBOARD_VISIBLE } from "@/lib/leaderboard-visible";
 import type { PortalReady } from "@/lib/portal.types";
 
 export function DeskFrame({
@@ -38,7 +39,7 @@ export function DeskFrame({
   }
   const snap = portal.snap;
   const canDeals = snap.member.role !== "staff" || snap.member.deals;
-  const canBoard = snap.member.role === "admin" || snap.member.shareholder;
+  const canBoard = LEADERBOARD_VISIBLE && (snap.member.role === "admin" || snap.member.shareholder);
   const links = canDeals
     ? snap.links
     : snap.links.filter((link) => !/\/(deals|vouchers)(?:\/|$|\?)/.test(link.url));
