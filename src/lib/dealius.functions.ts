@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
+import { getSql } from "@/lib/db";
 
 const BASE = "https://leeindustry.dealius.com";
 const PAGE = 50;
@@ -352,6 +353,205 @@ export const dealiusLeaderboard = createServerFn({ method: "POST" })
     } finally {
       job.busy = false;
     }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Dealius could not be reached.";
+      return { ok: false, error: message };
+    }
+  });
+
+export type ClosedDeal = {
+  id: number;
+  address: string;
+  squareFeet: number;
+  dealType: string;
+  closed: string;
+  paid: string;
+  commission: number;
+};
+
+export type MyDeals =
+  | { ok: true; from: string; to: string; partial: boolean; note: string; rows: ClosedDeal[] }
+  | { ok: false; error: string };
+
+type MineJob = {
+  at: number;
+  busy: boolean;
+  deals: Record<string, unknown>[];
+  cursor: number;
+  rows: ClosedDeal[];
+  sizes: Map<number, number>;
+  sawPaid: boolean;
+  brokerIds: number[];
+};
+
+const mineJobs = new Map<string, MineJob>();
+
+function squareFeetOf(record: Record<string, unknown>): number {
+  for (const key of ["SquareFeet", "SquareFootage", "LeasedSquareFeet", "SizeSf", "LeaseCurrentSquareFeetOccupied"]) {
+    const size = num(record[key]);
+    if (size > 0) return size;
+  }
+  return 0;
+}
+
+export const dealiusMyDeals = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: { from?: string; to?: string }) => ({
+    from: typeof data?.from === "string" ? data.from.slice(0, 10) : "",
+    to: typeof data?.to === "string" ? data.to.slice(0, 10) : "",
+  }))
+  .handler(async ({ data, context }): Promise<MyDeals> => {
+    const key = process.env.DEALIUS_API_KEY?.trim();
+    if (!key) return { ok: false, error: "Dealius is not connected yet. Add DEALIUS_API_KEY in Vercel." };
+    const from = day(data.from, false);
+    const to = day(data.to, true);
+    if (!from || !to) return { ok: false, error: "Choose a start and end date." };
+    const db = await getSql();
+    const users = await db<{ email: string }>`select email from "user" where id = ${context.userId} limit 1`;
+    const email = text(users[0]?.email).toLowerCase();
+    if (!email) return { ok: false, error: "This login has no email to match in Dealius." };
+    const jobKey = `mine|${email}|${data.from}|${data.to}`;
+    try {
+      let job = mineJobs.get(jobKey);
+      if (job && Date.now() - job.at > 10 * 60 * 1000) {
+        mineJobs.delete(jobKey);
+        job = undefined;
+      }
+      if (!job) {
+        const relevance = rowsOf(await dealiusGet("/api/lookup/dealrelevancetypes", key));
+        const closed =
+          relevance.find((item) => text(item.Text ?? item.text).toLowerCase() === "closed") ??
+          relevance.find((item) => {
+            const name = text(item.Text ?? item.text).toLowerCase();
+            return name.includes("closed") && !name.includes("pending") && !name.includes("dead");
+          });
+        const closedId = num(closed?.ID ?? closed?.Id ?? closed?.id);
+        if (!closedId) return { ok: false, error: "Dealius did not return a Closed deal list." };
+        const brokers = await everyPage("/api/brokers", key, 500);
+        const brokerIds = brokers
+          .filter((broker) => text(broker.Email).toLowerCase() === email)
+          .map((broker) => num(broker.ContactID))
+          .filter((id) => id > 0);
+        if (brokerIds.length === 0) {
+          return {
+            ok: true,
+            from: data.from,
+            to: data.to,
+            partial: false,
+            note: `No Dealius broker uses ${email}.`,
+            rows: [],
+          };
+        }
+        const query = new URLSearchParams();
+        query.set("DealRelevance", String(closedId));
+        query.set("DateFrom", from);
+        query.set("DateTo", to);
+        query.set("DealMembersEmails", email);
+        const deals = await everyPage(`/api/deals?${query.toString()}`, key, 300);
+        const seen = new Set<number>();
+        job = {
+          at: Date.now(),
+          busy: false,
+          deals: deals.filter((deal) => {
+            const id = num(deal.DealID ?? deal.dealID);
+            if (!id || seen.has(id)) return false;
+            const status = text(deal.DealStatusName);
+            if (status && !closedStatus(status)) return false;
+            seen.add(id);
+            return true;
+          }),
+          cursor: 0,
+          rows: [],
+          sizes: new Map(),
+          sawPaid: false,
+          brokerIds,
+        };
+        mineJobs.set(jobKey, job);
+      }
+      if (job.busy) {
+        return {
+          ok: true,
+          from: data.from,
+          to: data.to,
+          partial: job.cursor < job.deals.length,
+          note: "",
+          rows: job.rows,
+        };
+      }
+      job.busy = true;
+      job.at = Date.now();
+      try {
+        const deadline = Date.now() + 7000;
+        while (job.cursor < job.deals.length && Date.now() < deadline) {
+          const batch = job.deals.slice(job.cursor, job.cursor + 6);
+          job.cursor += batch.length;
+          await Promise.all(
+            batch.map(async (deal) => {
+              const id = num(deal.DealID ?? deal.dealID);
+              if (!id) return;
+              try {
+                const detail = await dealiusGet(`/api/deals/${id}`, key);
+                const record = detail && typeof detail === "object" ? (detail as Record<string, unknown>) : {};
+                if (!closedStatus(record.DealStatusName) && !closedStatus(deal.DealStatusName)) return;
+                const closedDay = calendarDay(record.ActualCloseDate) || calendarDay(deal.ActualCloseDate);
+                if (!closedDay || closedDay < data.from || closedDay > data.to) return;
+                const people = (Array.isArray(record.InternalBrokers) ? record.InternalBrokers : []).filter(
+                  (person): person is Record<string, unknown> => Boolean(person) && typeof person === "object",
+                );
+                const mine = people.find(
+                  (person) => job.brokerIds.includes(num(person.ContactID)) || text(person.Email).toLowerCase() === email,
+                );
+                if (!mine) return;
+                const paid = invoicePaidDays(record)
+                  .filter((paidDay) => paidDay >= data.from && paidDay <= data.to)
+                  .sort()
+                  .at(-1) ?? "";
+                if (paid) job.sawPaid = true;
+                let squareFeet = squareFeetOf(record);
+                const propertyId = num(record.PropertyID ?? deal.PropertyID);
+                if (!squareFeet && propertyId) {
+                  if (!job.sizes.has(propertyId)) {
+                    try {
+                      const property = await dealiusGet(`/api/properties/${propertyId}`, key);
+                      const info = property && typeof property === "object" ? (property as Record<string, unknown>) : {};
+                      job.sizes.set(propertyId, num(info.SquareFootage) || num(info.BuildingSizeSf));
+                    } catch {
+                      job.sizes.set(propertyId, 0);
+                    }
+                  }
+                  squareFeet = job.sizes.get(propertyId) ?? 0;
+                }
+                job.rows.push({
+                  id,
+                  address: text(deal.PropertyAddress) || text(record.DealName) || `Deal ${id}`,
+                  squareFeet,
+                  dealType: text(deal.DealTypeText) || text(record.DealTypeName) || text(record.DealTypeText),
+                  closed: closedDay,
+                  paid,
+                  commission: num(mine.CommissionGrossAmount),
+                });
+              } catch {
+                return;
+              }
+            }),
+          );
+        }
+      } finally {
+        job.busy = false;
+      }
+      const rows = [...job.rows].sort((a, b) => b.closed.localeCompare(a.closed) || a.address.localeCompare(b.address));
+      const partial = job.cursor < job.deals.length;
+      if (!partial) mineJobs.delete(jobKey);
+      return {
+        ok: true,
+        from: data.from,
+        to: data.to,
+        partial,
+        note: job.sawPaid
+          ? ""
+          : "Dealius does not send the invoice paid date. These are closed deals, the date is the close date, and commission is your broker gross on the whole deal.",
+        rows,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Dealius could not be reached.";
       return { ok: false, error: message };
