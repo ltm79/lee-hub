@@ -17,6 +17,7 @@ import {
   updateMember,
 } from "@/lib/portal.functions";
 import type { ActionResult, AdminLink, AdminPerson, AdminSnapshot, MemberRole } from "@/lib/portal.types";
+import { LEADERBOARD_VISIBLE } from "@/lib/leaderboard-visible";
 import { MEMBER_OFFICES, roleLabel } from "@/lib/portal.types";
 
 function asRole(value: string): MemberRole {
@@ -344,7 +345,9 @@ function LinksPanel({
 }) {
   const ordered = [
     ...data.categories.map((category) => ({ kind: "category" as const, id: category.id, order: category.sortOrder })),
-    { kind: "board" as const, id: "leaderboard", order: data.leaderboardOrder },
+    ...(LEADERBOARD_VISIBLE
+      ? [{ kind: "board" as const, id: "leaderboard", order: data.leaderboardOrder }]
+      : []),
   ].sort((a, b) => a.order - b.order || (a.kind === "board" ? -1 : 1));
 
   return (
