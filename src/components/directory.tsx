@@ -5,6 +5,7 @@ import { LocalConditions } from "@/components/local-conditions";
 import { LeaderboardCard } from "@/components/leaderboard";
 import { MarketLibrary } from "@/components/market-library";
 import { toggleFavorite } from "@/lib/portal.functions";
+import { LEADERBOARD_VISIBLE } from "@/lib/leaderboard-visible";
 import type { DeskLink, PortalReady } from "@/lib/portal.types";
 
 function greet(date: Date) {
@@ -79,7 +80,7 @@ export function Directory({
     : snap.links.filter((link) => !/\/(deals|vouchers)(?:\/|$|\?)/.test(link.url));
   const pinned = links.filter((link) => snap.favoriteIds.includes(link.id));
   const market = snap.categories.some(isMarket);
-  const canBoard = snap.member.role === "admin" || snap.member.shareholder;
+  const canBoard = LEADERBOARD_VISIBLE && (snap.member.role === "admin" || snap.member.shareholder);
   const canEdit = snap.member.role === "admin";
   const tones = new Map(hubGroups({ ...snap, links }, canBoard).map((group) => [group.id, group.tone]));
   const slots = [
