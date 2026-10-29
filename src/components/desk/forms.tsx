@@ -41,7 +41,7 @@ export function sectionsFor(kind: Kind): { id: string; label: string }[] {
   return [
     { id: "property", label: "Property" },
     { id: "money", label: "Commission" },
-    { id: "files", label: "Files" },
+    { id: "docs", label: "Documents" },
     { id: "sign", label: "Sign" },
   ];
 }
