@@ -69,7 +69,7 @@ function dropRow(answers: Answers, set: SetAnswer, prefix: string, suffixes: str
   for (const suffix of suffixes) set(`${prefix}${shown}${suffix}`, "");
 }
 
-const SPLIT_FIELDS = ["Agent", "Entity", "Pct", "HasRunner", "Runner", "RunnerAmt", "Defer"];
+const SPLIT_FIELDS = ["Agent", "Pct", "HasRunner", "Runner", "RunnerAmt", "Defer"];
 const OUTSIDE_FIELDS = ["License", "Company", "Contact", "Address", "City", "Email", "Area", "Phone", "Corp", "Sales", "Commission"];
 
 function PropertyBlock({
@@ -227,12 +227,6 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
                   label="Agent"
                   value={read(answers, `split${n}Agent`)}
                   onChange={(value) => set(`split${n}Agent`, value)}
-                />
-                <Field
-                  name={`split${n}Entity`}
-                  label="Entity"
-                  value={read(answers, `split${n}Entity`)}
-                  onChange={(value) => set(`split${n}Entity`, value)}
                 />
                 <Field
                   name={`split${n}Pct`}
