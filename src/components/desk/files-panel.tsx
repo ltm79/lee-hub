@@ -129,7 +129,7 @@ export function FilesPanel({
           </ul>
         </Card>
       ))}
-      <Card title={groups.length ? "Supporting Documents" : "Backup files"} eyebrow={groups.length ? undefined : "Kept with this voucher"}>
+      <Card title="Supporting Documents" eyebrow={groups.length ? undefined : "Kept with this voucher"}>
         <OtherDrop
           files={other}
           onAttach={(list) => void attach("other", list)}
