@@ -28,7 +28,7 @@ export function finishMoney(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
   const n = Number(trimmed.replace(/[$,%\s,]/g, ""));
-  return Number.isFinite(n) ? money(n) : trimmed;
+  return Number.isFinite(n) ? `$${money(n)}` : trimmed;
 }
 
 export function finishComma(value: string): string {
