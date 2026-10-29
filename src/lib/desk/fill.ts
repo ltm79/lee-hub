@@ -96,7 +96,7 @@ function splits(form: PDFForm, answers: Answers) {
     const n = index + 1;
     text(form, names[0], answers[`split${n}Agent`], 28);
     check(form, names[1], answers[`split${n}Defer`] === "1");
-    text(form, names[2], answers[`split${n}Entity`], 28);
+    text(form, names[2], "", 28);
     text(form, names[3], answers[`split${n}Pct`], 8);
     text(form, names[4], splitNet(answers.gross, answers[`split${n}Pct`]), 16);
     text(form, names[5], answers[`split${n}Runner`], 28);
@@ -383,7 +383,7 @@ function fillAdditional(page: PDFPage, font: PDFFont, answers: Answers) {
     const n = index + 1;
     draw(page, font, answers[`split${n}Agent`], slot.x, slot.yAgent, 22);
     if (answers[`split${n}Defer`] === "1") mark(page, font, slot.xDefer, slot.yAgent - 2);
-    draw(page, font, answers[`split${n}Entity`], slot.x, slot.yEntity, 22);
+    draw(page, font, "", slot.x, slot.yEntity, 22);
     draw(page, font, answers[`split${n}Pct`], slot.x + 28, slot.yPct, 6);
     draw(page, font, splitNet(answers.gross, answers[`split${n}Pct`]), slot.xNet, slot.yPct, 12);
     draw(page, font, answers[`split${n}Runner`], slot.x + 40, slot.yRunner, 22);
