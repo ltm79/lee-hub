@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { hasBalance, type Answers, type Kind } from "@/lib/desk/types";
-import { dollars, groupPhone, leaseMath, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
+import { dollars, distributionCheck, groupPhone, leaseMath, splitPercentTotal, splitShare, termMonths } from "@/lib/desk/money";
 import { listInternalUsers, type InternalUser } from "@/lib/desk/people";
 import { FilesPanel } from "@/components/desk/files-panel";
 import { Card, Checks, Choice, DateField, Field, read, SecondaryButton } from "@/components/desk/ui";
@@ -193,6 +193,7 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
   const [opened, setOpened] = useState(() => slotCount(answers, "split", 4, 1));
   const shown = Math.max(opened, slotCount(answers, "split", 4, 1));
   const percent = splitPercentTotal(answers);
+  const check = distributionCheck(answers);
   return (
     <div className="grid gap-4">
       {Number.isFinite(percent) ? (
@@ -200,10 +201,19 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
           Internal splits add up to {percent}% of Gross to Lee.
         </p>
       ) : null}
+      {check.any ? (
+        <p className={`text-sm ${check.over ? "text-red-deep" : "text-ink-soft"}`}>
+          Internal gross plus external commission is {dollars(check.total)}
+          {Number.isFinite(check.received) ? ` of ${dollars(check.received)} Amount Received.` : ". Enter Amount Received to check the total."}
+          {check.over ? " That is over Amount Received." : ""}
+        </p>
+      ) : null}
       <div className="grid gap-3 lg:grid-cols-2">
         {Array.from({ length: shown }, (_, index) => {
           const n = index + 1;
-          const net = splitNet(answers.gross, answers[`split${n}Pct`]);
+          const share = splitShare(answers.gross, answers[`split${n}Pct`]);
+          const grossText = Number.isFinite(share) ? dollars(share) : "—";
+          const netText = Number.isFinite(share) ? dollars(share / 2) : "—";
           return (
             <div key={n} className="rounded-md border border-line bg-paper p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -237,8 +247,13 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
                   format="percent"
                 />
                 <div>
-                  <p className="text-sm text-ink-soft">Net commission</p>
-                  <p className="mt-2 text-lg font-medium tabular-nums text-ink">{net ? `$${net}` : "—"}</p>
+                  <p className="text-sm text-ink-soft">Gross</p>
+                  <p className="mt-2 text-lg font-medium tabular-nums text-ink">{grossText}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-ink-soft">Net</p>
+                  <p className="mt-2 text-lg font-medium tabular-nums text-ink">{netText}</p>
+                  <p className="text-xs text-muted">Half of this agent's gross.</p>
                 </div>
                 <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
                   <input
