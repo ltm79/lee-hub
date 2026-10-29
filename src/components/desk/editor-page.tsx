@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Download, FolderArchive, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mail } from "lucide-react";
 import { checkedWithoutFile, packetFiles } from "@/lib/desk/docs";
 import { blockers, KIND_META, streetAddress, type Packet } from "@/lib/desk/types";
-import { downloadVoucher } from "@/lib/desk/fill";
-import { downloadPacket } from "@/lib/desk/packet";
+import { downloadUploadedFiles } from "@/lib/desk/packet";
 import { notifyStaff } from "@/lib/desk/notify";
 import { useDesk, useDeskHydrated } from "@/lib/desk/store";
 import { listRecipients, type StaffRecipient } from "@/lib/desk/people";
@@ -29,7 +28,7 @@ export function EditorPage({ id }: { id: string }) {
   const defaultEmail = useDesk((state) => state.defaultEmail);
   const setDefaultEmail = useDesk((state) => state.setDefaultEmail);
   const [section, setSection] = useState("property");
-  const [busy, setBusy] = useState<"" | "pdf" | "packet" | "email" | "save">("");
+  const [busy, setBusy] = useState<"" | "email" | "save" | "files">("");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [staff, setStaff] = useState<StaffRecipient[]>([]);
@@ -129,15 +128,6 @@ export function EditorPage({ id }: { id: string }) {
     setDefaultEmail(addresses);
   }
 
-  function leftOutNote(count: number) {
-    if (count <= 0) return;
-    setError(
-      count === 1
-        ? "1 attached file is no longer in this browser and was left out of the voucher."
-        : `${count} attached files are no longer in this browser and were left out of the voucher.`,
-    );
-  }
-
   async function onSaveDraft() {
     if (!packet) return;
     setBusy("save");
@@ -153,29 +143,17 @@ export function EditorPage({ id }: { id: string }) {
     }
   }
 
-  async function onDownload() {
+  async function onFiles() {
     if (!packet) return;
-    setBusy("pdf");
+    setBusy("files");
     setError("");
     setNote("");
     try {
-      await downloadVoucher(packet);
+      const leftOut = await downloadUploadedFiles(packet);
+      if (files.length === 0) setNote("The agent has not uploaded any files.");
+      else if (leftOut > 0) setError("A file from this voucher could not be included.");
     } catch {
-      setError("The PDF could not be built. Try again.");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function onPacket() {
-    if (!packet) return;
-    setBusy("packet");
-    setError("");
-    setNote("");
-    try {
-      leftOutNote(await downloadPacket(packet));
-    } catch {
-      setError("The voucher could not be built. Try again.");
+      setError("The files could not be downloaded. Try again.");
     } finally {
       setBusy("");
     }
@@ -222,10 +200,6 @@ export function EditorPage({ id }: { id: string }) {
                 {files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"}` : ""}
               </p>
             </div>
-            <PrimaryButton className="shrink-0" disabled={busy !== ""} onClick={() => void onDownload()}>
-              <Download className="size-4" aria-hidden="true" />
-              {busy === "pdf" ? "Building…" : "PDF"}
-            </PrimaryButton>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto" aria-label="Voucher sections">
             {sections.map((item) => {
@@ -268,8 +242,8 @@ export function EditorPage({ id }: { id: string }) {
               ? "Required fields are in."
               : `Still needs ${missing.map((item) => item.label.toLowerCase()).join(", ")}.`}
             {files.length === 0
-              ? " No backup files attached yet."
-              : ` ${files.length} backup file${files.length === 1 ? "" : "s"} attached.`}
+              ? " No supporting documents attached yet."
+              : ` ${files.length} supporting document${files.length === 1 ? "" : "s"} attached.`}
             {uncheckedFiles > 0
               ? ` ${uncheckedFiles} checked document${uncheckedFiles === 1 ? "" : "s"} still need a file.`
               : ""}
@@ -288,10 +262,6 @@ export function EditorPage({ id }: { id: string }) {
                 {busy === "email" ? "Sending…" : "Notify staff"}
               </PrimaryButton>
             )}
-            <SecondaryButton disabled={busy !== ""} onClick={() => void onPacket()}>
-              <FolderArchive className="size-4" aria-hidden="true" />
-              {busy === "packet" ? "Building…" : "Download voucher"}
-            </SecondaryButton>
             {viewOnly ? null : (
               <SecondaryButton
                 disabled={missing.length > 0 || busy !== ""}
@@ -368,6 +338,18 @@ export function EditorPage({ id }: { id: string }) {
             )}
             <p className="mt-2 text-xs text-muted">Pick one staff member, or several. Each person gets the same voucher.</p>
           </fieldset>
+        ) : null}
+        {viewOnly ? (
+          <div className="mt-8">
+            <PrimaryButton disabled={busy !== "" || files.length === 0} onClick={() => void onFiles()}>
+              {busy === "files" ? "Preparing…" : "Download files"}
+            </PrimaryButton>
+            {files.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">The agent has not uploaded any files.</p>
+            ) : (
+              <p className="mt-2 text-sm text-muted">Downloads the files the agent attached. One file saves on its own. More than one comes as a zip.</p>
+            )}
+          </div>
         ) : null}
       </main>
     </div>
