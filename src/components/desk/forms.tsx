@@ -98,12 +98,14 @@ function PropertyBlock({
           label="Street address"
           value={read(answers, "address")}
           onChange={(value) => set("address", value)}
+          required
         />
         <Field
           name="city"
           label="City, State, ZIP"
           value={read(answers, "city")}
           onChange={(value) => set("city", value)}
+          required
         />
         {showType ? (
           <Field
