@@ -1,7 +1,7 @@
 import type { Answers } from "@/lib/desk/types";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Calendar } from "lucide-react";
-import { finishComma, finishMoney, finishPercent, groupNumber } from "@/lib/desk/money";
+import { finishComma, finishMoney, finishPercent, groupNumber, groupPhone } from "@/lib/desk/money";
 
 export function Field({
   name,
@@ -28,7 +28,7 @@ export function Field({
   multiline?: boolean;
   hint?: string;
   required?: boolean;
-  format?: "money" | "comma" | "percent";
+  format?: "money" | "comma" | "percent" | "phone";
 }) {
   const id = `f-${name}`;
   const empty = required && !value.trim();
@@ -43,6 +43,7 @@ export function Field({
       return;
     }
     if (format === "comma") onChange?.(groupNumber(next, 2));
+    else if (format === "phone") onChange?.(groupPhone(next));
     else onChange?.(next);
   }
   function blur() {
