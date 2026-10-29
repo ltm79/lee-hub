@@ -164,7 +164,6 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
           onChange={(value) => set("gross", value)}
           inputMode="decimal"
           format="money"
-          hint="House splits are a percent of this number."
         />
         <Field
           name="balance"
