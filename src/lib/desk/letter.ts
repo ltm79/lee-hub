@@ -80,7 +80,7 @@ export function voucherLetter(packet: Packet, fileNames: string[]): string {
     ...block("Money", [
       line("Funds", answers.fundsType),
       line("Received from", answers.fundsFrom),
-      line("Amount received", answers.amountReceived),
+      line("Amount Received", answers.amountReceived),
       line("Gross commission", answers.gross),
       line("Commission %", answers.salePct),
       ...splits.map((row) => `Inside split: ${row}`),
