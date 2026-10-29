@@ -101,7 +101,7 @@ function PropertyBlock({
         />
         <Field
           name="city"
-          label="City, state, ZIP"
+          label="City, State, ZIP"
           value={read(answers, "city")}
           onChange={(value) => set("city", value)}
         />
@@ -116,7 +116,7 @@ function PropertyBlock({
         ) : null}
         <Field
           name="sf"
-          label="Square feet"
+          label="Square Feet"
           value={read(answers, "sf")}
           onChange={(value) => set("sf", value)}
           inputMode="decimal"
@@ -321,7 +321,7 @@ function ExternalBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
               <Field name={`ext${n}Company`} label="Company" value={read(answers, `ext${n}Company`)} onChange={(value) => set(`ext${n}Company`, value)} />
               <Field name={`ext${n}Contact`} label="Contact" value={read(answers, `ext${n}Contact`)} onChange={(value) => set(`ext${n}Contact`, value)} />
               <Field className="sm:col-span-2" name={`ext${n}Address`} label="Address" value={read(answers, `ext${n}Address`)} onChange={(value) => set(`ext${n}Address`, value)} />
-              <Field name={`ext${n}City`} label="City, state, ZIP" value={read(answers, `ext${n}City`)} onChange={(value) => set(`ext${n}City`, value)} />
+              <Field name={`ext${n}City`} label="City, State, ZIP" value={read(answers, `ext${n}City`)} onChange={(value) => set(`ext${n}City`, value)} />
               <Field name={`ext${n}Email`} label="Email" value={read(answers, `ext${n}Email`)} onChange={(value) => set(`ext${n}Email`, value)} inputMode="email" />
               <Field name={`ext${n}Area`} label="Area code" value={read(answers, `ext${n}Area`)} onChange={(value) => set(`ext${n}Area`, value)} inputMode="tel" />
               <Field name={`ext${n}Phone`} label="Phone" value={read(answers, `ext${n}Phone`)} onChange={(value) => set(`ext${n}Phone`, value)} inputMode="tel" />
@@ -644,7 +644,7 @@ export function VoucherSection({
     }
     if (kind === "additional") {
       return (
-        <Card eyebrow="Additional Payment" title="Property and parties">
+        <Card eyebrow="Additional Payment" title="Property and Parties">
           <div className="grid gap-5">
             <PropertyBlock answers={answers} set={set} showType={false} />
             <Parties
@@ -652,8 +652,8 @@ export function VoucherSection({
               set={set}
               left="seller"
               right="buyer"
-              leftTitle="Seller / lessor"
-              rightTitle="Buyer / lessee"
+              leftTitle="Seller / Lessor"
+              rightTitle="Buyer / Lessee"
             />
           </div>
         </Card>
