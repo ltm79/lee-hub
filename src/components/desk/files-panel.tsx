@@ -32,7 +32,7 @@ export function FilesPanel({
   const updateAnswer = useDesk((state) => state.updateAnswer);
   const removeFile = useDesk((state) => state.removeFile);
   const files = packet ? packetFiles(packet) : [];
-  const groups = docGroups(kind, answers.transaction);
+  const groups = docGroups(kind, answers);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ url: string; file: Attachment; kind: "image" | "pdf" } | null>(null);
 
@@ -96,11 +96,9 @@ export function FilesPanel({
   const known = new Set(docSlots(kind));
   const other = files.filter((file) => file.slot === "other" || !known.has(file.slot));
   const intro =
-    kind === "lease" && groups.length === 0
-      ? "Choose lease, sublease, or renewal on Property. Only that file’s documents show here."
-      : groups.length > 0
-        ? "Check a line to mark it on the voucher. Attach the file itself so the downloaded voucher includes it."
-        : "Attach the check copy, wire advice, or the earlier voucher this payment follows.";
+    groups.length > 0
+      ? "This is the voucher document checklist. Check a line when that item is included, and attach the file."
+      : "This voucher has no document checklist. Attach the check copy, wire advice, or the earlier voucher this payment follows.";
 
   return (
     <div className="grid gap-4">
@@ -111,7 +109,7 @@ export function FilesPanel({
         </p>
       ) : null}
       {groups.map((group, index) => (
-        <Card key={group.title} title={group.title} eyebrow={index === 0 ? "Backup with the voucher" : undefined}>
+        <Card key={group.title} title={group.title} eyebrow={index === 0 ? "Voucher Document Checklist" : undefined}>
           <ul className="grid gap-2">
             {group.items.map((item) => (
               <DocRow
