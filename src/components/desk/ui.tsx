@@ -118,18 +118,22 @@ export function DateField({
   value,
   onChange,
   className = "",
+  required = false,
 }: {
   name: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  required?: boolean;
 }) {
   const id = `f-${name}`;
+  const empty = required && !value.trim();
   return (
     <div className={className}>
       <label htmlFor={id} className="text-sm text-ink-soft">
         {label}
+        {required ? <span className="ml-1.5 font-semibold text-red">Required</span> : null}
       </label>
       <div className="mt-1 flex gap-2">
         <input
@@ -140,7 +144,9 @@ export function DateField({
           autoComplete="off"
           onChange={(event) => onChange(event.target.value)}
           onBlur={() => onChange(normalizeDate(value))}
-          className="h-11 min-w-0 flex-1 rounded-md border border-line bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none"
+          className={`h-11 min-w-0 flex-1 rounded-md border bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none ${
+            empty ? "border-red bg-red-soft" : "border-line"
+          }`}
         />
         <label className="relative grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-line bg-card text-ink">
           <Calendar className="size-4" aria-hidden="true" />
