@@ -95,11 +95,39 @@ export function leaseMath(answers: Answers): {
   return { rows, consideration, commission, any: rows.some((row) => row.active) };
 }
 
-export function splitNet(gross: string | undefined, pct: string | undefined): string {
+export function splitShare(gross: string | undefined, pct: string | undefined): number {
   const base = num(gross);
   const rate = num(pct);
-  if (!pct?.trim() || !Number.isFinite(base) || !Number.isFinite(rate)) return "";
-  return money((base * rate) / 100);
+  if (!pct?.trim() || !Number.isFinite(base) || !Number.isFinite(rate)) return Number.NaN;
+  return (base * rate) / 100;
+}
+
+export function splitNet(gross: string | undefined, pct: string | undefined): string {
+  const share = splitShare(gross, pct);
+  if (!Number.isFinite(share)) return "";
+  return money(share / 2);
+}
+
+export function distributionCheck(answers: Answers): { total: number; received: number; over: boolean; any: boolean } {
+  let total = 0;
+  let any = false;
+  for (let i = 1; i <= 4; i += 1) {
+    const share = splitShare(answers.gross, answers[`split${i}Pct`]);
+    if (Number.isFinite(share)) {
+      total += share;
+      any = true;
+    }
+  }
+  for (let i = 1; i <= 2; i += 1) {
+    const commission = num(answers[`ext${i}Commission`]);
+    if (answers[`ext${i}Commission`]?.trim() && Number.isFinite(commission)) {
+      total += commission;
+      any = true;
+    }
+  }
+  const received = num(answers.amountReceived);
+  const over = any && Number.isFinite(received) && total - received > 0.009;
+  return { total, received, over, any };
 }
 
 export function splitPercentTotal(answers: Answers): number {
