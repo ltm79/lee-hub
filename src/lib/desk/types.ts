@@ -89,10 +89,19 @@ export function blockers(kind: Kind, answers: Answers): Blocker[] {
   if (kind === "sale" && answers.buyerType !== "user" && answers.buyerType !== "investor") {
     out.push({ key: "buyerType", label: "Buyer type", section: "property" });
   }
+  if (hasBalance(answers.balance) && !answers.dueDate?.trim()) {
+    out.push({ key: "dueDate", label: "Due Date", section: "money" });
+  }
   if (!answers.agentSign?.trim()) {
     out.push({ key: "agentSign", label: "Agent signature", section: "sign" });
   }
   return out;
+}
+
+export function hasBalance(value: string | undefined): boolean {
+  if (!value?.trim()) return false;
+  const amount = Number(value.replace(/[$,\s]/g, ""));
+  return Number.isFinite(amount) && amount !== 0;
 }
 
 export function streetAddress(value: string | undefined): string {
