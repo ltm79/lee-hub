@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { Banknote, Building2, FileText, FolderArchive, Handshake, Trash2 } from "lucide-react";
+import { Banknote, Building2, FileText, Handshake, Trash2 } from "lucide-react";
 import { KIND_META, KIND_ORDER, packetTitle, type Kind, type Packet } from "@/lib/desk/types";
 import { packetFiles } from "@/lib/desk/docs";
-import { downloadVoucher } from "@/lib/desk/fill";
-import { downloadPacket } from "@/lib/desk/packet";
 import { useDesk, useDeskHydrated } from "@/lib/desk/store";
 import { useMember } from "@/lib/desk/use-member";
 import { listLinkedAgents, listSubmitted, type SubmittedRow } from "@/lib/desk/people";
@@ -321,29 +319,6 @@ export function HomePage() {
                           <PrimaryButton onClick={() => void navigate({ to: "/vouchers/$id", params: { id: packet.id } })}>
                             Open
                           </PrimaryButton>
-                          <SecondaryButton
-                            onClick={() => {
-                              setError("");
-                              void downloadPacket(packet)
-                                .then((leftOut) => {
-                                  if (leftOut > 0) {
-                                    setError("A file from this voucher is no longer in this browser and was left out.");
-                                  }
-                                })
-                                .catch(() => setError("The voucher could not be built."));
-                            }}
-                          >
-                            <FolderArchive className="size-4" aria-hidden="true" />
-                            Voucher
-                          </SecondaryButton>
-                          <SecondaryButton
-                            onClick={() => {
-                              setError("");
-                              void downloadVoucher(packet).catch(() => setError("The PDF could not be built."));
-                            }}
-                          >
-                            PDF
-                          </SecondaryButton>
                           {pendingDelete === packet.id ? (
                             <SecondaryButton
                               onClick={() => {
