@@ -132,7 +132,7 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
   return (
     <div className="grid gap-4">
       <Choice
-        label="Type of funds"
+        label="Type of Funds"
         value={read(answers, "fundsType")}
         onChange={(value) => set("fundsType", value)}
         options={[
@@ -145,13 +145,13 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
         <Field
           className="sm:col-span-2"
           name="fundsFrom"
-          label="Funds received from"
+          label="Funds Received From"
           value={read(answers, "fundsFrom")}
           onChange={(value) => set("fundsFrom", value)}
         />
         <Field
           name="amountReceived"
-          label="Amount received"
+          label="Amount Received"
           value={read(answers, "amountReceived")}
           onChange={(value) => set("amountReceived", value)}
           inputMode="decimal"
@@ -168,12 +168,13 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
         />
         <Field
           name="balance"
-          label="Outstanding balance"
+          label="Outstanding Balance"
           value={read(answers, "balance")}
           onChange={(value) => set("balance", value)}
           inputMode="decimal"
+          format="money"
         />
-        <DateField name="dueDate" label="Due date" value={read(answers, "dueDate")} onChange={(value) => set("dueDate", value)} />
+        <DateField name="dueDate" label="Due Date" value={read(answers, "dueDate")} onChange={(value) => set("dueDate", value)} />
       </div>
     </div>
   );
@@ -806,7 +807,7 @@ export function VoucherSection({
   if (section === "money") {
     return (
       <div className="grid gap-4">
-        <Card title="Funds received">
+        <Card title="Funds Received">
           <FundsBlock answers={answers} set={set} />
         </Card>
         <Card title="Internal distribution">
