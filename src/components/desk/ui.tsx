@@ -1,5 +1,6 @@
 import type { Answers } from "@/lib/desk/types";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Calendar } from "lucide-react";
 import { finishComma, finishMoney, finishPercent, groupNumber } from "@/lib/desk/money";
 
 export function Field({
@@ -31,11 +32,17 @@ export function Field({
 }) {
   const id = `f-${name}`;
   const empty = required && !value.trim();
+  const shown = format === "money" && value.trim() && !value.trim().startsWith("$") ? `$${value.trim()}` : value;
   const shared = `mt-1 w-full rounded-md border bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none ${
     empty ? "border-red bg-red-soft" : "border-line"
   }`;
   function change(next: string) {
-    if (format === "money" || format === "comma") onChange?.(groupNumber(next, format === "money" ? 2 : 2));
+    if (format === "money") {
+      const grouped = groupNumber(next, 2);
+      onChange?.(grouped ? `$${grouped}` : "");
+      return;
+    }
+    if (format === "comma") onChange?.(groupNumber(next, 2));
     else onChange?.(next);
   }
   function blur() {
@@ -53,7 +60,7 @@ export function Field({
       {multiline ? (
         <textarea
           id={id}
-          value={value}
+          value={shown}
           readOnly={readOnly}
           rows={4}
           placeholder={placeholder}
@@ -64,7 +71,7 @@ export function Field({
       ) : (
         <input
           id={id}
-          value={value}
+          value={shown}
           readOnly={readOnly}
           inputMode={inputMode}
           placeholder={placeholder}
@@ -134,13 +141,16 @@ export function DateField({
           onBlur={() => onChange(normalizeDate(value))}
           className="h-11 min-w-0 flex-1 rounded-md border border-line bg-card px-3 text-sm text-ink placeholder:text-muted focus-visible:border-red focus-visible:outline-none"
         />
-        <input
-          type="date"
-          aria-label={`Calendar for ${label}`}
-          value={toIsoDate(value)}
-          onChange={(event) => onChange(fromIsoDate(event.target.value))}
-          className="h-11 w-11 shrink-0 cursor-pointer rounded-md border border-line bg-card px-1 text-ink"
-        />
+        <label className="relative grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-line bg-card text-ink">
+          <Calendar className="size-4" aria-hidden="true" />
+          <input
+            type="date"
+            aria-label={`Calendar for ${label}`}
+            value={toIsoDate(value)}
+            onChange={(event) => onChange(fromIsoDate(event.target.value))}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </label>
       </div>
     </div>
   );
