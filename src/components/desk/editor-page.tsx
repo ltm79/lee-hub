@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Mail } from "lucide-react";
 import { checkedWithoutFile, packetFiles } from "@/lib/desk/docs";
 import { blockers, KIND_META, streetAddress, type Packet } from "@/lib/desk/types";
+import { num } from "@/lib/desk/money";
 import { downloadUploadedFiles } from "@/lib/desk/packet";
 import { notifyStaff } from "@/lib/desk/notify";
 import { useDesk, useDeskHydrated } from "@/lib/desk/store";
@@ -31,6 +32,7 @@ export function EditorPage({ id }: { id: string }) {
   const [busy, setBusy] = useState<"" | "email" | "save" | "files">("");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [payoutNotice, setPayoutNotice] = useState(false);
   const [staff, setStaff] = useState<StaffRecipient[]>([]);
 
   useEffect(() => {
@@ -70,6 +72,12 @@ export function EditorPage({ id }: { id: string }) {
 
   const packet = own ?? foreign;
   const viewOnly = !own && Boolean(foreign);
+  const receivedAmount = packet?.answers.amountReceived ?? "";
+  const grossAmount = packet?.answers.gross ?? "";
+
+  useEffect(() => {
+    setPayoutNotice(false);
+  }, [receivedAmount, grossAmount]);
 
   if (!ready || isPending || memberPending || !foreignReady) {
     return (
@@ -285,11 +293,25 @@ export function EditorPage({ id }: { id: string }) {
           set={(key, value) => updateAnswer(packet.id, key, value)}
         />
         {sections[sections.findIndex((item) => item.id === active) + 1] ? (
-          <div className="mt-6 flex justify-end">
+          <div className="mt-6 flex flex-col items-end gap-3">
+            {payoutNotice ? (
+              <p className="text-sm text-red-deep">Check payouts. Amount Received does not match Gross to Lee.</p>
+            ) : null}
             <PrimaryButton
               onClick={() => {
                 const next = sections[sections.findIndex((item) => item.id === active) + 1];
                 if (!next) return;
+                if (active === "money" && !viewOnly) {
+                  const received = num(packet.answers.amountReceived);
+                  const gross = num(packet.answers.gross);
+                  const mismatch =
+                    Number.isFinite(received) && Number.isFinite(gross) && Math.abs(received - gross) > 0.009;
+                  if (mismatch && !payoutNotice) {
+                    setPayoutNotice(true);
+                    return;
+                  }
+                }
+                setPayoutNotice(false);
                 setSection(next.id);
                 document.getElementById("voucher-form")?.scrollIntoView({ block: "start" });
               }}
