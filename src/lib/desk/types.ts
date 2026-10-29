@@ -67,10 +67,10 @@ export function blockers(kind: Kind, answers: Answers): Blocker[] {
     out.push({ key: "address", label: "Street address", section: "property" });
   }
   if (!answers.city?.trim()) {
-    out.push({ key: "city", label: "City, state, ZIP", section: "property" });
+    out.push({ key: "city", label: "City, State, ZIP", section: "property" });
   }
   if (!answers.sf?.trim()) {
-    out.push({ key: "sf", label: "Square feet", section: "property" });
+    out.push({ key: "sf", label: "Square Feet", section: "property" });
   }
   if (kind === "lease" && !answers.transaction) {
     out.push({
