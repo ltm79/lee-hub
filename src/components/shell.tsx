@@ -1,10 +1,10 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { BadgeCheck, Briefcase, LayoutGrid, Menu, Settings, Trophy, Users, X } from "lucide-react";
+import { BadgeCheck, BarChart3, Briefcase, LayoutGrid, Menu, Settings, Trophy, Users, X } from "lucide-react";
 import { UserButton } from "@/lib/auth/gates";
 import { LeeLogo } from "@/components/mark";
 
-export type DeskSection = "desk" | "deals" | "closed" | "people" | "admin" | "board";
+export type DeskSection = "desk" | "market" | "deals" | "closed" | "people" | "admin" | "board";
 
 export type HubGroup = { id: string; name: string; tone: number };
 
@@ -49,8 +49,9 @@ export function hubGroups(
   return groups;
 }
 
-const NAV: { id: DeskSection; label: string; to: "/" | "/deals" | "/closed" | "/leaderboard" | "/people" | "/admin"; icon: typeof LayoutGrid }[] = [
+const NAV: { id: DeskSection; label: string; to: "/" | "/market" | "/deals" | "/closed" | "/leaderboard" | "/people" | "/admin"; icon: typeof LayoutGrid }[] = [
   { id: "desk", label: "Hub", to: "/", icon: LayoutGrid },
+  { id: "market", label: "Market", to: "/market", icon: BarChart3 },
   { id: "deals", label: "Deals", to: "/deals", icon: Briefcase },
   { id: "closed", label: "Closed deals", to: "/closed", icon: BadgeCheck },
   { id: "board", label: "Dealius Leaderboard", to: "/leaderboard", icon: Trophy },
