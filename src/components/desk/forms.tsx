@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Answers, Kind } from "@/lib/desk/types";
+import { hasBalance, type Answers, type Kind } from "@/lib/desk/types";
 import { dollars, groupPhone, leaseMath, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
 import { listInternalUsers, type InternalUser } from "@/lib/desk/people";
 import { FilesPanel } from "@/components/desk/files-panel";
@@ -167,15 +167,23 @@ function FundsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
           inputMode="decimal"
           format="money"
         />
-        <Field
-          name="balance"
-          label="Outstanding Balance"
-          value={read(answers, "balance")}
-          onChange={(value) => set("balance", value)}
-          inputMode="decimal"
-          format="money"
-        />
-        <DateField name="dueDate" label="Due Date" value={read(answers, "dueDate")} onChange={(value) => set("dueDate", value)} />
+        <div className="grid gap-4 rounded-md border border-line bg-paper p-3 sm:col-span-2 sm:grid-cols-2">
+          <Field
+            name="balance"
+            label="Outstanding Balance"
+            value={read(answers, "balance")}
+            onChange={(value) => set("balance", value)}
+            inputMode="decimal"
+            format="money"
+          />
+          <DateField
+            name="dueDate"
+            label="Due Date"
+            value={read(answers, "dueDate")}
+            onChange={(value) => set("dueDate", value)}
+            required={hasBalance(read(answers, "balance"))}
+          />
+        </div>
       </div>
     </div>
   );
