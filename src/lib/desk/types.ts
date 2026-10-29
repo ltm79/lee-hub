@@ -92,10 +92,41 @@ export function blockers(kind: Kind, answers: Answers): Blocker[] {
   if (hasBalance(answers.balance) && !answers.dueDate?.trim()) {
     out.push({ key: "dueDate", label: "Due Date", section: "money" });
   }
+  if (distributionExceeds(answers)) {
+    out.push({ key: "amountReceived", label: "Distribution over Amount Received", section: "money" });
+  }
   if (!answers.agentSign?.trim()) {
     out.push({ key: "agentSign", label: "Agent signature", section: "sign" });
   }
   return out;
+}
+
+function moneyValue(value: string | undefined): number {
+  if (!value?.trim()) return Number.NaN;
+  const amount = Number(value.replace(/[$,%\s]/g, ""));
+  return Number.isFinite(amount) ? amount : Number.NaN;
+}
+
+function distributionExceeds(answers: Answers): boolean {
+  const received = moneyValue(answers.amountReceived);
+  const gross = moneyValue(answers.gross);
+  let total = 0;
+  let any = false;
+  for (let index = 1; index <= 4; index += 1) {
+    const pct = moneyValue(answers[`split${index}Pct`]);
+    if (answers[`split${index}Pct`]?.trim() && Number.isFinite(gross) && Number.isFinite(pct)) {
+      total += (gross * pct) / 100;
+      any = true;
+    }
+  }
+  for (let index = 1; index <= 2; index += 1) {
+    const commission = moneyValue(answers[`ext${index}Commission`]);
+    if (answers[`ext${index}Commission`]?.trim() && Number.isFinite(commission)) {
+      total += commission;
+      any = true;
+    }
+  }
+  return any && Number.isFinite(received) && total - received > 0.009;
 }
 
 export function hasBalance(value: string | undefined): boolean {
