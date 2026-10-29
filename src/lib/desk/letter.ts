@@ -20,8 +20,7 @@ export function voucherLetter(packet: Packet, fileNames: string[]): string {
     const agent = answers[`split${i}Agent`]?.trim();
     if (!agent) continue;
     const pct = answers[`split${i}Pct`]?.trim();
-    const entity = answers[`split${i}Entity`]?.trim();
-    splits.push([agent, pct ? `${pct}%` : "", entity].filter(Boolean).join(" · "));
+    splits.push([agent, pct ? `${pct}%` : ""].filter(Boolean).join(" · "));
   }
   const entities: string[] = [];
   for (let i = 1; i <= 2; i += 1) {
