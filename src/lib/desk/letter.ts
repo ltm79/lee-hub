@@ -46,7 +46,7 @@ export function voucherLetter(packet: Packet, fileNames: string[]): string {
       line("City", answers.city),
       line("Type", answers.propertyType),
       line("Other type", answers.propertyOther),
-      line("Square feet", answers.sf),
+      line("Square Feet", answers.sf),
       line("Transaction", answers.transaction),
       line("Engagement", answers.engagement),
     ]),
