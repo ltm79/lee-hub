@@ -39,6 +39,16 @@ export function finishComma(value: string): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
+export function groupPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (!digits) return "";
+  if (digits.length < 3) return `(${digits}`;
+  const area = digits.slice(0, 3);
+  const rest = digits.slice(3);
+  if (rest.length <= 3) return `(${area})${rest}`;
+  return `(${area})${rest.slice(0, 3)}-${rest.slice(3)}`;
+}
+
 export function finishPercent(value: string): string {
   const trimmed = value.trim().replace(/%/g, "").trim();
   if (!trimmed) return "";
