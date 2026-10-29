@@ -533,9 +533,17 @@ function SignBlock({
     <div className="grid gap-4">
       <p className="text-sm text-ink-soft">
         I certify that the information in this voucher is true and correct to the best of my knowledge.
-        {extra ? ` ${extra}` : ""} Typing a name places it on the signature line of the PDF.
+        {extra ? ` ${extra}` : ""} The name below is the signature.
       </p>
-      <Field name="agentSign" label="Agent signature" value={read(answers, "agentSign")} onChange={(value) => set("agentSign", value)} />
+      <label className="block">
+        <span className="text-sm text-ink-soft">Agent signature</span>
+        <input
+          value={read(answers, "agentSign")}
+          onChange={(event) => set("agentSign", event.target.value)}
+          className="mt-1 h-16 w-full rounded-md border border-line bg-card px-3 text-3xl text-ink focus-visible:border-red focus-visible:outline-none"
+          style={{ fontFamily: '"Great Vibes", cursive' }}
+        />
+      </label>
       <Field name="comments" label="Comments" multiline value={read(answers, "comments")} onChange={(value) => set("comments", value)} />
     </div>
   );
