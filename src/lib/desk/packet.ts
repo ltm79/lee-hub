@@ -161,6 +161,34 @@ export async function buildPacket(packet: Packet): Promise<{ blob: Blob; filenam
   return { blob: bytesBlob(zipStore(entries), "application/zip"), filename, missing: missing.length };
 }
 
+export async function downloadUploadedFiles(packet: Packet): Promise<number> {
+  const files = packetFiles(packet);
+  if (files.length === 0) return 0;
+  if (files.length === 1) {
+    const blob = await getBlob(files[0].id);
+    if (!blob) return 1;
+    saveBlob(blob, safeFileName(files[0].name));
+    return 0;
+  }
+  const used = new Set<string>();
+  const entries: ZipEntry[] = [];
+  let missing = 0;
+  for (const file of files) {
+    const blob = await getBlob(file.id);
+    if (!blob) {
+      missing += 1;
+      continue;
+    }
+    const label = slotLabel(packet.kind, file.slot);
+    const path = uniquePath(used, `${safeFileName(label)}--${safeFileName(file.name)}`);
+    entries.push({ name: path, data: new Uint8Array(await blob.arrayBuffer()) });
+  }
+  if (entries.length === 0) return missing;
+  const filename = voucherFilename(packet).replace(/\.pdf$/i, "-files.zip");
+  saveBlob(bytesBlob(zipStore(entries), "application/zip"), filename);
+  return missing;
+}
+
 export async function downloadPacket(packet: Packet): Promise<number> {
   const built = await buildPacket(packet);
   saveBlob(built.blob, built.filename);
