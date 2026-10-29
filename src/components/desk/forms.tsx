@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Answers, Kind } from "@/lib/desk/types";
-import { dollars, leaseMath, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
+import { dollars, groupPhone, leaseMath, splitNet, splitPercentTotal, termMonths } from "@/lib/desk/money";
 import { listInternalUsers, type InternalUser } from "@/lib/desk/people";
 import { FilesPanel } from "@/components/desk/files-panel";
 import { Card, Checks, Choice, DateField, Field, read, SecondaryButton } from "@/components/desk/ui";
@@ -264,15 +264,6 @@ function SplitsBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
                   </>
                 ) : null}
               </div>
-              <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={answers[`split${n}Defer`] === "1"}
-                  onChange={(event) => set(`split${n}Defer`, event.target.checked ? "1" : "")}
-                  className="size-4 accent-red"
-                />
-                Defer this split
-              </label>
             </div>
           );
         })}
@@ -323,11 +314,23 @@ function ExternalBlock({ answers, set }: { answers: Answers; set: SetAnswer }) {
               <Field className="sm:col-span-2" name={`ext${n}Address`} label="Address" value={read(answers, `ext${n}Address`)} onChange={(value) => set(`ext${n}Address`, value)} />
               <Field name={`ext${n}City`} label="City, State, ZIP" value={read(answers, `ext${n}City`)} onChange={(value) => set(`ext${n}City`, value)} />
               <Field name={`ext${n}Email`} label="Email" value={read(answers, `ext${n}Email`)} onChange={(value) => set(`ext${n}Email`, value)} inputMode="email" />
-              <Field name={`ext${n}Area`} label="Area code" value={read(answers, `ext${n}Area`)} onChange={(value) => set(`ext${n}Area`, value)} inputMode="tel" />
-              <Field name={`ext${n}Phone`} label="Phone" value={read(answers, `ext${n}Phone`)} onChange={(value) => set(`ext${n}Phone`, value)} inputMode="tel" />
+              <Field
+                name={`ext${n}Phone`}
+                label="Phone"
+                value={groupPhone(
+                  `${read(answers, `ext${n}Phone`).includes("(") ? "" : read(answers, `ext${n}Area`)}${read(answers, `ext${n}Phone`)}`,
+                )}
+                onChange={(value) => {
+                  set(`ext${n}Phone`, value);
+                  if (answers[`ext${n}Area`]) set(`ext${n}Area`, "");
+                }}
+                inputMode="tel"
+                format="phone"
+                placeholder="(xxx)XXX-XXXX"
+              />
               <Field name={`ext${n}Corp`} label="Corp. DRE #" value={read(answers, `ext${n}Corp`)} onChange={(value) => set(`ext${n}Corp`, value)} />
               <Field name={`ext${n}Sales`} label="Salesperson DRE #" value={read(answers, `ext${n}Sales`)} onChange={(value) => set(`ext${n}Sales`, value)} />
-              <Field name={`ext${n}Commission`} label="Commission amount" value={read(answers, `ext${n}Commission`)} onChange={(value) => set(`ext${n}Commission`, value)} inputMode="decimal" />
+              <Field name={`ext${n}Commission`} label="Commission Amount" value={read(answers, `ext${n}Commission`)} onChange={(value) => set(`ext${n}Commission`, value)} inputMode="decimal" format="money" />
             </div>
           </div>
         );
