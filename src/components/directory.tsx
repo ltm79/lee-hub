@@ -4,6 +4,7 @@ import { hubGroups, toneFor } from "@/components/shell";
 import { LocalConditions } from "@/components/local-conditions";
 import { LeaderboardCard } from "@/components/leaderboard";
 import { MarketLibrary } from "@/components/market-library";
+import { DealLeaderboard } from "@/components/deal-leaderboard";
 import { toggleFavorite } from "@/lib/portal.functions";
 import { LEADERBOARD_VISIBLE } from "@/lib/leaderboard-visible";
 import type { DeskLink, PortalReady } from "@/lib/portal.types";
@@ -17,6 +18,11 @@ function greet(date: Date) {
 
 function isMarket(category: { id: string; name: string }) {
   return category.id === "research" || category.name.trim().toLowerCase() === "market research";
+}
+
+function isDeals(category: { id: string; name: string }) {
+  const name = category.name.trim().toLowerCase();
+  return category.id === "deals" || name === "deal tools" || name.startsWith("deal tool");
 }
 
 function firstName(name: string) {
@@ -82,6 +88,8 @@ export function Directory({
   const market = snap.categories.some(isMarket);
   const canBoard = LEADERBOARD_VISIBLE && (snap.member.role === "admin" || snap.member.shareholder);
   const canEdit = snap.member.role === "admin";
+  const canSeeBoard = canEdit || snap.member.shareholder;
+  const hasDeals = snap.categories.some(isDeals);
   const tones = new Map(hubGroups({ ...snap, links }, canBoard).map((group) => [group.id, group.tone]));
   const slots = [
     ...snap.categories.map((category) => ({ kind: "category" as const, category, order: category.sortOrder })),
@@ -141,7 +149,8 @@ export function Directory({
         const category = slot.category;
         const items = links.filter((link) => link.categoryId === category.id);
         const showFiles = isMarket(category);
-        if (items.length === 0 && !showFiles) return null;
+        const showBoard = canSeeBoard && isDeals(category);
+        if (items.length === 0 && !showFiles && !showBoard) return null;
         const tone = tones.get(category.id) ?? 0;
         const color = toneFor(tone);
         return (
@@ -164,9 +173,20 @@ export function Directory({
               </div>
             ) : null}
             {showFiles ? <MarketLibrary canEdit={canEdit} /> : null}
+            {showBoard ? <DealLeaderboard isAdmin={canEdit} viewerName={snap.member.name} /> : null}
           </section>
         );
       })}
+
+      {canSeeBoard && !hasDeals ? (
+        <section id="group-deal-board" className="mt-10 scroll-mt-8">
+          <h2 className="flex items-center gap-3 text-lg font-semibold">
+            <span className="h-px w-6 bg-deep" />
+            Deal tools
+          </h2>
+          <DealLeaderboard isAdmin={canEdit} viewerName={snap.member.name} />
+        </section>
+      ) : null}
 
       {!market ? (
         <section id="group-market" className="mt-10 scroll-mt-8">
