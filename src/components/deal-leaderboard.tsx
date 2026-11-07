@@ -21,6 +21,16 @@ function personKey(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function samePerson(a: string, b: string) {
+  const left = personKey(a);
+  const right = personKey(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const aParts = left.split(" ");
+  const bParts = right.split(" ");
+  return aParts[0] === bParts[0] && aParts[aParts.length - 1] === bParts[bParts.length - 1];
+}
+
 function published(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
@@ -36,6 +46,17 @@ function shareOf(gross: number, total: number) {
   if (!total) return "0%";
   const share = (gross / total) * 100;
   return `${share >= 10 ? share.toFixed(0) : share.toFixed(1)}%`;
+}
+
+type BoardRow = BoardView["rows"][number];
+
+function Bar({ width, tone }: { width: number; tone: "you" | "them" | "row" }) {
+  const color = tone === "you" ? "bg-teal" : tone === "them" ? "bg-deep" : "bg-crimson";
+  return (
+    <span className="block h-1.5 overflow-hidden rounded-[3px] bg-paper">
+      <span className={`block h-full ${color}`} style={{ width: `${Math.max(3, width)}%` }} />
+    </span>
+  );
 }
 
 export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; viewerName: string }) {
@@ -73,10 +94,24 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
   const lead = rows[0] ?? null;
   const needle = query.trim().toLowerCase();
   const visible = needle ? rows.filter((row) => row.name.toLowerCase().includes(needle)) : rows;
-  const current = rows.find((row) => row.name === selected) ?? lead;
-  const viewer = personKey(viewerName);
-  const max = lead?.gross ?? 1;
-  const above = current ? rows.find((row) => row.rank === current.rank - 1) : undefined;
+  const mine = rows.find((row) => samePerson(row.name, viewerName)) ?? null;
+  const picked = rows.find((row) => row.name === selected && !samePerson(row.name, viewerName)) ?? null;
+  const rival =
+    picked ??
+    (mine && lead && lead.name !== mine.name ? lead : null) ??
+    (mine ? rows.find((row) => row.rank === mine.rank + 1) ?? null : null) ??
+    (rows.length > 1 ? rows[1] : null);
+  const left = mine ?? rows[0] ?? null;
+  const max = lead?.gross || 1;
+  const pairMax = Math.max(left?.gross ?? 0, rival?.gross ?? 0, 1);
+
+  function pick(row: BoardRow) {
+    if (samePerson(row.name, viewerName)) {
+      setSelected("");
+      return;
+    }
+    setSelected((current) => (current === row.name ? "" : row.name));
+  }
 
   async function readFile(file: File) {
     setNote("");
@@ -107,27 +142,37 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
     reload();
   }
 
-  if (board === undefined && !error) return <p className="mt-6 text-sm text-muted">Opening the leaderboard…</p>;
+  const asOf = board?.asOfLabel
+    ? `As of ${board.asOfLabel}`
+    : board?.updatedAt
+      ? `Updated ${published(board.updatedAt)}`
+      : "Not published yet";
+
+  if (board === undefined && !error) return <p className="mt-4 text-sm text-muted">Opening the leaderboard…</p>;
 
   return (
-    <div className="mt-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="mt-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-deep">Deal leaderboard</p>
-          <h3 className="mt-1 font-serif text-3xl tracking-tight text-ink">Broker gross</h3>
-          <p className="mt-1 text-sm text-muted">
-            {board?.asOfLabel ? `As of ${board.asOfLabel}` : board?.updatedAt ? `Updated ${published(board.updatedAt)}` : "Not published yet"}
+          <h3 className="text-lg font-semibold tracking-tight text-ink">Deal leaderboard</h3>
+          <p className="text-xs text-muted">
+            {asOf}
             {board?.rangeLabel ? ` · ${board.rangeLabel}` : ""}
-            {board?.updatedAt && board.asOfLabel ? ` · Data updated ${published(board.updatedAt)}` : ""}
+            {board ? ` · ${rows.length} agents` : ""}
           </p>
         </div>
-        <p className="text-xs font-medium text-faint">Shareholders only</p>
+        {board ? (
+          <p className="text-sm text-ink">
+            <span className="text-muted">Office gross </span>
+            <span className="font-semibold tabular-nums">{compact(total)}</span>
+          </p>
+        ) : null}
       </div>
 
-      {error ? <p className="mt-4 text-sm text-deep">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-deep">{error}</p> : null}
 
       {!board && !error ? (
-        <p className="mt-4 rounded-[6px] border border-line bg-surface px-4 py-6 text-sm text-muted">
+        <p className="mt-3 rounded-[6px] border border-line bg-surface px-3 py-4 text-sm text-muted">
           {isAdmin
             ? "Upload the Dealius leaderboard export. Agents and gross are published for shareholders."
             : "The office has not published a leaderboard yet."}
@@ -136,73 +181,60 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
 
       {board ? (
         <>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <article className="rounded-[6px] border border-line bg-surface px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">Office gross</p>
-              <p className="mt-2 font-serif text-4xl tracking-tight text-ink">{compact(total)}</p>
-              <p className="mt-1 text-xs text-faint">{dollars(total)}</p>
-            </article>
-            <article className="rounded-[6px] border border-line bg-surface px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">Agents</p>
-              <p className="mt-2 font-serif text-4xl tracking-tight text-ink">{rows.length}</p>
-              <p className="mt-1 text-xs text-faint">With a broker gross</p>
-            </article>
-            <article className="rounded-[6px] border border-deep/20 bg-blush px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-deep">Leading</p>
-              <p className="mt-2 truncate font-serif text-3xl tracking-tight text-ink">{lead?.name}</p>
-              <p className="mt-1 text-sm font-semibold text-deep">{lead ? dollars(lead.gross) : ""}</p>
-            </article>
-          </div>
-
-          {rows.length >= 2 ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              {[
-                { row: rows[0], place: "sm:order-2" },
-                { row: rows[1], place: "sm:order-1" },
-                { row: rows[2], place: "sm:order-3" },
-              ]
-                .filter((item) => item.row)
-                .map(({ row, place }) => (
-                  <button
-                    key={row.name}
-                    type="button"
-                    onClick={() => setSelected(row.name)}
-                    className={
-                      row.rank === 1
-                        ? `${place} rounded-[6px] border border-deep bg-deep px-4 py-4 text-left text-white`
-                        : `${place} rounded-[6px] border border-line bg-surface px-4 py-4 text-left`
-                    }
-                  >
-                    <span className={row.rank === 1 ? "text-[11px] font-semibold uppercase tracking-widest text-white/70" : "text-[11px] font-semibold uppercase tracking-widest text-muted"}>
-                      {row.rank === 1 ? "1st" : row.rank === 2 ? "2nd" : "3rd"}
-                    </span>
-                    <p className="mt-2 truncate text-base font-semibold">{row.name}</p>
-                    <p className={row.rank === 1 ? "mt-1 font-serif text-3xl" : "mt-1 font-serif text-3xl text-ink"}>{compact(row.gross)}</p>
-                  </button>
-                ))}
-            </div>
-          ) : null}
-
-          {current ? (
-            <div className="mt-3 flex flex-wrap items-end justify-between gap-3 rounded-[6px] border border-line bg-surface px-4 py-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-teal">
-                  #{current.rank}
-                  {personKey(current.name) === viewer ? " · You" : ""}
-                </p>
-                <p className="mt-1 text-lg font-semibold text-ink">{current.name}</p>
+          {left && rival && left.name !== rival.name ? (
+            <section className="mt-3 rounded-[6px] border border-line bg-surface px-3 py-3">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-teal">
+                    {mine ? `You · #${left.rank}` : `#${left.rank}`}
+                  </p>
+                  <p className="truncate text-sm font-semibold text-ink">{left.name}</p>
+                  <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">{dollars(left.gross)}</p>
+                </div>
+                <p className="pt-4 text-[11px] font-semibold uppercase tracking-widest text-faint">vs</p>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-deep">#{rival.rank}</p>
+                  <p className="truncate text-sm font-semibold text-ink">{rival.name}</p>
+                  <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">{dollars(rival.gross)}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-serif text-3xl tracking-tight text-ink">{dollars(current.gross)}</p>
-                <p className="text-xs text-muted">
-                  {shareOf(current.gross, total)} of the office
-                  {above ? ` · ${dollars(above.gross - current.gross)} behind ${above.name}` : " · Leading the office"}
-                </p>
+              <div className="mt-3 grid gap-1.5">
+                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+                  <span className="text-xs font-semibold text-teal">{mine ? "You" : `#${left.rank}`}</span>
+                  <Bar width={(left.gross / pairMax) * 100} tone="you" />
+                </div>
+                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+                  <span className="text-xs font-semibold text-deep">#{rival.rank}</span>
+                  <Bar width={(rival.gross / pairMax) * 100} tone="them" />
+                </div>
               </div>
+              <p className="mt-2 text-sm text-ink">
+                {left.gross === rival.gross
+                  ? "Same broker gross"
+                  : left.gross > rival.gross
+                    ? `${mine ? "You are" : `${left.name} is`} ${dollars(left.gross - rival.gross)} ahead`
+                    : `${rival.name} is ${dollars(rival.gross - left.gross)} ahead of ${mine ? "you" : left.name}`}
+                <span className="text-muted">
+                  {" "}
+                  · {Math.abs(left.rank - rival.rank)} {Math.abs(left.rank - rival.rank) === 1 ? "place" : "places"} apart · {shareOf(left.gross, total)} of the office
+                </span>
+              </p>
+            </section>
+          ) : mine ? (
+            <div className="mt-3 rounded-[6px] border border-teal/30 bg-mist px-3 py-2.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-teal">You · #{mine.rank}</p>
+                <p className="text-sm font-semibold tabular-nums text-ink">{dollars(mine.gross)}</p>
+              </div>
+              <p className="truncate text-sm font-semibold text-ink">{mine.name}</p>
             </div>
-          ) : null}
+          ) : (
+            <p className="mt-3 text-xs text-muted">Your name is not on this file.</p>
+          )}
 
-          <label className="mt-3 flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3">
+          <p className="mt-2 text-xs text-faint">Select a name to change the comparison.</p>
+
+          <label className="mt-2 flex h-9 items-center gap-2 rounded-[6px] border border-line bg-surface px-3">
             <Search className="size-4 text-faint" aria-hidden="true" />
             <input
               value={query}
@@ -212,29 +244,33 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
             />
           </label>
 
-          <div className="mt-2 max-h-[28rem] overflow-auto rounded-[6px] border border-line bg-surface">
-            {visible.length === 0 ? <p className="px-4 py-6 text-sm text-muted">No agent matches that name.</p> : null}
+          <div className="mt-2 max-h-80 overflow-auto rounded-[6px] border border-line bg-surface">
+            {visible.length === 0 ? <p className="px-3 py-4 text-sm text-muted">No agent matches that name.</p> : null}
             {visible.map((row) => {
-              const active = current?.name === row.name;
-              const mine = personKey(row.name) === viewer;
+              const isMine = mine?.name === row.name;
+              const isRival = rival?.name === row.name;
               return (
                 <button
                   key={`${row.rank}-${row.name}`}
                   type="button"
-                  onClick={() => setSelected(row.name)}
-                  className={active ? "flex w-full items-center gap-3 border-b border-line bg-blush px-3 py-2.5 text-left last:border-b-0" : "flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-paper"}
+                  onClick={() => pick(row)}
+                  className={
+                    isRival
+                      ? "flex w-full items-center gap-3 border-b border-line bg-blush px-3 py-1.5 text-left last:border-b-0"
+                      : isMine
+                        ? "flex w-full items-center gap-3 border-b border-line bg-mist px-3 py-1.5 text-left last:border-b-0"
+                        : "flex w-full items-center gap-3 border-b border-line px-3 py-1.5 text-left last:border-b-0 hover:bg-paper"
+                  }
                 >
-                  <span className="w-8 shrink-0 text-sm font-semibold tabular-nums text-faint">{row.rank}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-ink">{row.name}</span>
-                      {mine ? <span className="rounded-[4px] bg-mist px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
-                    </span>
-                    <span className="mt-1 block h-1.5 overflow-hidden rounded-[3px] bg-paper">
-                      <span className="block h-full bg-crimson" style={{ width: `${Math.max(4, (row.gross / max) * 100)}%` }} />
-                    </span>
+                  <span className="w-6 shrink-0 text-xs font-semibold tabular-nums text-faint">{row.rank}</span>
+                  <span className="w-36 shrink-0 truncate text-sm font-semibold text-ink sm:w-44">
+                    {row.name}
+                    {isMine ? <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
                   </span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</span>
+                  <span className="min-w-0 flex-1">
+                    <Bar width={(row.gross / max) * 100} tone={isMine ? "you" : isRival ? "them" : "row"} />
+                  </span>
+                  <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</span>
                 </button>
               );
             })}
@@ -243,15 +279,10 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
       ) : null}
 
       {isAdmin ? (
-        <section className="mt-4 rounded-[6px] border border-dashed border-line bg-surface p-4">
+        <section className="mt-3 rounded-[6px] border border-dashed border-line bg-surface px-3 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h4 className="text-sm font-semibold text-ink">Publish a new file</h4>
-              <p className="mt-1 max-w-xl text-sm text-muted">
-                Use the Dealius leaderboard export. Only the agent name and broker gross are saved. Volume, net, and forecasts stay out.
-              </p>
-            </div>
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[6px] bg-ink px-4 text-sm font-semibold text-white">
+            <p className="text-sm text-muted">Upload a Dealius export. Only names and broker gross are saved.</p>
+            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white">
               <Upload className="size-4" aria-hidden="true" />
               Choose file
               <input
@@ -267,24 +298,23 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
             </label>
           </div>
           {draft ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[6px] bg-paper px-3 py-3">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-ink">
                 {draft.rows.length} agents
                 {draft.asOfLabel ? ` · as of ${draft.asOfLabel}` : ""}
-                {draft.rangeLabel ? ` · ${draft.rangeLabel}` : ""}
-                {draft.rows[0] ? ` · ${draft.rows[0].name} leads` : ""}. This replaces the board shareholders see.
+                {draft.rangeLabel ? ` · ${draft.rangeLabel}` : ""}. This replaces the board.
               </p>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void publish()}
-                className="h-10 rounded-[6px] bg-deep px-4 text-sm font-semibold text-white disabled:opacity-60"
+                className="h-9 rounded-[6px] bg-deep px-3 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {busy ? "Publishing…" : "Publish"}
               </button>
             </div>
           ) : null}
-          {note ? <p className="mt-3 text-sm text-deep">{note}</p> : null}
+          {note ? <p className="mt-2 text-sm text-deep">{note}</p> : null}
         </section>
       ) : null}
     </div>
