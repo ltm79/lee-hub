@@ -3,6 +3,8 @@ import { ChevronDown, Search, Upload } from "lucide-react";
 import { parseLeaderboardSheet, type BoardDraft } from "@/lib/board.excel";
 import { loadDealBoard, saveDealBoard, type BoardView } from "@/lib/board.functions";
 
+const DEALS_URL = "https://leeindustry.dealius.com/tracker#payments";
+
 function dollars(amount: number) {
   const digits = Math.abs(amount) >= 100 ? 0 : 2;
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: digits });
@@ -61,6 +63,7 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
   const [board, setBoard] = useState<BoardView | null | undefined>(undefined);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  const [drawn, setDrawn] = useState(false);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<BoardDraft | null>(null);
   const [note, setNote] = useState("");
@@ -86,6 +89,15 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
   useEffect(() => {
     reload();
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setDrawn(false);
+      return;
+    }
+    const frame = requestAnimationFrame(() => setDrawn(true));
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   const rows = board?.rows ?? [];
   const total = useMemo(() => rows.reduce((sum, row) => sum + row.gross, 0), [rows]);
@@ -171,6 +183,9 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
                     {row.name}
                     {mine ? <span className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
                   </p>
+                  <a href={DEALS_URL} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-[11px] font-semibold text-crimson">
+                    See deals
+                  </a>
                   <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</p>
                 </li>
               );
@@ -198,19 +213,37 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
                   className="h-full w-full bg-transparent text-sm outline-none"
                 />
               </label>
-              <div className="mt-2 max-h-80 overflow-auto rounded-[6px] border border-line bg-surface">
+              <div className="mt-2 max-h-96 overflow-auto rounded-[6px] border border-line bg-surface">
                 {visible.length === 0 ? <p className="px-3 py-4 text-sm text-muted">No agent matches that name.</p> : null}
                 {visible.map((row) => {
                   const mine = samePerson(row.name, viewerName);
+                  const lead = rows[0]?.gross || row.gross || 1;
+                  const width = Math.max(3, Math.min(100, (row.gross / lead) * 100));
                   return (
-                    <div key={`${row.rank}-${row.name}`} className="flex items-center gap-3 border-b border-line px-3 py-1.5 last:border-b-0">
-                      <span className="w-6 shrink-0 text-xs font-semibold tabular-nums text-faint">{row.rank}</span>
-                      <Face name={row.name} photo={row.photo} />
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
-                        {row.name}
-                        {mine ? <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
-                      </span>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</span>
+                    <div key={`${row.rank}-${row.name}`} className="border-b border-line px-3 py-2 last:border-b-0 transition hover:bg-paper">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 shrink-0 text-xs font-semibold tabular-nums text-faint">{row.rank}</span>
+                        <Face name={row.name} photo={row.photo} />
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                          {row.name}
+                          {mine ? <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
+                        </span>
+                        <a
+                          href={DEALS_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 rounded-[6px] border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-crimson hover:border-crimson"
+                        >
+                          See deals
+                        </a>
+                        <span className="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</span>
+                      </div>
+                      <div className="mt-1.5 ml-9 h-1.5 overflow-hidden rounded-full bg-paper">
+                        <div
+                          className="h-full rounded-full bg-crimson transition-all duration-500 ease-out"
+                          style={{ width: drawn ? `${width}%` : "0%" }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
