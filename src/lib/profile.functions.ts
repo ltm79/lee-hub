@@ -20,37 +20,47 @@ function cleanPhoto(value: unknown) {
   const photo = text(value).trim();
   if (!photo) return { ok: true as const, photo: "" };
   if (!photo.startsWith("data:image/jpeg;base64,") || photo.length > MAX_PHOTO) {
-    return { ok: false as const, error: "Use a photo under about 150 KB. The page will shrink it." };
+    return { ok: false as const, error: "That photo is too large. Choose another." };
   }
   return { ok: true as const, photo };
 }
 
-export const loadProfile = createServerFn({ method: "GET" })
+export const loadMyPhoto = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<{ ok: true; name: string; email: string; photo: string } | { ok: false; error: string }> => {
-    const db = await getDb();
-    const rows = await db<{ name: string; email: string; photo: string | null; active: unknown }>`
-      select u.name, u.email, m.photo, m.active
-      from members m
-      join "user" u on u.id = m.user_id
-      where m.user_id = ${context.userId}
-    `;
-    const row = rows[0];
-    if (!row || !flag(row.active)) return { ok: false, error: "This login cannot open a profile." };
-    return { ok: true, name: row.name, email: row.email, photo: row.photo ?? "" };
+  .handler(async ({ context }): Promise<{ photo: string }> => {
+    try {
+      const db = await getDb();
+      const rows = await db<{ photo: string | null }>`
+        select photo from members where user_id = ${context.userId}
+      `;
+      const photo = rows[0]?.photo ?? "";
+      return { photo: photo.startsWith("data:image/") ? photo : "" };
+    } catch {
+      return { photo: "" };
+    }
   });
 
-export const saveProfilePhoto = createServerFn({ method: "POST" })
+export const saveMemberPhoto = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data: { photo?: string }) => data)
+  .validator((data: { userId?: string; photo?: string }) => data)
   .handler(async ({ context, data }): Promise<{ ok: true } | { ok: false; error: string }> => {
     const db = await getDb();
-    const rows = await db<{ active: unknown }>`
-      select active from members where user_id = ${context.userId}
+    const admins = await db<{ role: string; active: unknown }>`
+      select role, active from members where user_id = ${context.userId}
     `;
-    if (!rows[0] || !flag(rows[0].active)) return { ok: false, error: "This login cannot update a profile." };
+    if (!admins[0] || admins[0].role !== "admin" || !flag(admins[0].active)) {
+      return { ok: false, error: "An administrator has to set headshots." };
+    }
+    const userId = text(data?.userId).trim();
+    if (!userId) return { ok: false, error: "Choose a login." };
     const photo = cleanPhoto(data?.photo);
     if (!photo.ok) return photo;
-    await db`update members set photo = ${photo.photo} where user_id = ${context.userId}`;
+    const members = await db<{ user_id: string }>`select user_id from members where user_id = ${userId}`;
+    if (!members[0]) return { ok: false, error: "That login is not on the office yet." };
+    try {
+      await db`update members set photo = ${photo.photo} where user_id = ${userId}`;
+    } catch {
+      return { ok: false, error: "The headshot could not be saved. Publish the latest update, then try again." };
+    }
     return { ok: true };
   });

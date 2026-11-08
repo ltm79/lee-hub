@@ -431,8 +431,20 @@ export const loadAdmin = createServerFn({ method: "GET" })
         deals: flag(person.deals),
         shareholder: flag(person.shareholder),
         hasPassword: flag(person.has_password),
+        photo: "",
       };
     });
+    try {
+      const photos = await db<{ user_id: string; photo: string }>`
+        select user_id, photo from members where photo <> ''
+      `;
+      for (const row of photos) {
+        const person = roster.find((item) => item.userId === row.user_id);
+        if (person && row.photo.startsWith("data:image/")) person.photo = row.photo;
+      }
+    } catch {
+      // The photo column arrives with the latest migration. Logins still open.
+    }
     return {
       ok: true,
       data: {

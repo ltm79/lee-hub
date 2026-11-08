@@ -1,9 +1,10 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
+import { loadMyPhoto } from "@/lib/profile.functions";
 
 const subscribeToNothing = () => () => {};
 const noGateSessionOnServer = () => false;
@@ -92,21 +93,37 @@ export function UserButton() {
   // Sign-out can take a moment (and can fail when deployed), so the control
   // shows it is working and cannot be fired twice.
   const [signingOut, setSigningOut] = useState(false);
+  const [photo, setPhoto] = useState("");
   const gateSession = useSyncExternalStore(
     subscribeToNothing,
     hasGateSessionMarker,
     noGateSessionOnServer,
   );
+  useEffect(() => {
+    let stop = false;
+    function load() {
+      void loadMyPhoto()
+        .then((result) => {
+          if (!stop) setPhoto(result.photo);
+        })
+        .catch(() => {
+          if (!stop) setPhoto("");
+        });
+    }
+    load();
+    window.addEventListener("lee-headshot", load);
+    return () => {
+      stop = true;
+      window.removeEventListener("lee-headshot", load);
+    };
+  }, [user?.id]);
   if (!user) return null;
   const label = user.displayName ?? user.primaryEmail ?? "Account";
+  const face = photo || user.profileImageUrl;
   return (
     <div className="flex items-center gap-2">
-      {user.profileImageUrl ? (
-        <img
-          src={user.profileImageUrl}
-          alt=""
-          className="h-8 w-8 rounded-full object-cover"
-        />
+      {face ? (
+        <img src={face} alt="" className="h-8 w-8 rounded-full object-cover" />
       ) : (
         <span className="grid h-8 w-8 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
           {label.charAt(0).toUpperCase()}

@@ -17,6 +17,8 @@ import {
   updateMember,
 } from "@/lib/portal.functions";
 import type { ActionResult, AdminLink, AdminPerson, AdminSnapshot, MemberRole } from "@/lib/portal.types";
+import { shrinkHeadshot, initials } from "@/lib/headshot";
+import { saveMemberPhoto } from "@/lib/profile.functions";
 import { LEADERBOARD_VISIBLE } from "@/lib/leaderboard-visible";
 import { MEMBER_OFFICES, roleLabel } from "@/lib/portal.types";
 
@@ -249,6 +251,18 @@ export function AdminConsole({
           onEdit={setEditingPerson}
           onReset={setResetting}
           onRun={run}
+          onPhoto={async (userId, photo) => {
+            const ok = await run(
+              () => saveMemberPhoto({ data: { userId, photo } }),
+              photo ? "Headshot saved." : "Headshot removed.",
+            );
+            if (ok) {
+              clearPortalCache();
+              window.dispatchEvent(new Event("lee-headshot"));
+              setEditingPerson((current) => (current && current.userId === userId ? { ...current, photo } : current));
+            }
+            return ok;
+          }}
         />
       ) : null}
 
@@ -273,6 +287,18 @@ export function AdminConsole({
         agents={data.people.filter((person) => person.role === "agent" && person.active)}
         busy={busy}
         onClose={() => setEditingPerson(null)}
+        onPhoto={async (userId, photo) => {
+          const ok = await run(
+            () => saveMemberPhoto({ data: { userId, photo } }),
+            photo ? "Headshot saved." : "Headshot removed.",
+          );
+          if (ok) {
+            clearPortalCache();
+            window.dispatchEvent(new Event("lee-headshot"));
+            setEditingPerson((current) => (current && current.userId === userId ? { ...current, photo } : current));
+          }
+          return ok;
+        }}
         onSave={async (draft) => {
           const ok = await run(() => updateMember({ data: draft }), "Login updated.");
           if (ok) setEditingPerson(null);
@@ -579,12 +605,14 @@ function PeoplePanel({
   onEdit,
   onReset,
   onRun,
+  onPhoto,
 }: {
   people: AdminPerson[];
   busy: boolean;
   onEdit: (person: AdminPerson) => void;
   onReset: (person: AdminPerson) => void;
   onRun: (action: () => Promise<ActionResult>, success: string) => Promise<boolean>;
+  onPhoto: (userId: string, photo: string) => Promise<boolean>;
 }) {
   const [officeFilter, setOfficeFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -657,6 +685,13 @@ function PeoplePanel({
               key={person.userId}
               className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 transition duration-200 ease-smooth-out hover:border-crimson sm:flex-row sm:items-center"
             >
+              {person.photo ? (
+                <img src={person.photo} alt="" className="size-10 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-blush text-sm font-semibold text-deep">
+                  {initials(person.name)}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{person.name}</p>
                 <p className="truncate text-sm text-muted">{person.email}</p>
@@ -701,9 +736,28 @@ function PeoplePanel({
                     Approve
                   </Button>
                 ) : (
-                  <Button variant="secondary" onClick={() => onEdit(person)}>
-                    Edit
-                  </Button>
+                  <>
+                    <Button variant="secondary" onClick={() => onEdit(person)}>
+                      Edit
+                    </Button>
+                    <label className="inline-flex h-10 cursor-pointer items-center rounded-sm border border-line bg-surface px-3 text-sm font-medium">
+                      {person.photo ? "Replace photo" : "Add photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={busy}
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (!file || !file.type.startsWith("image/")) return;
+                          void shrinkHeadshot(file)
+                            .then((photo) => onPhoto(person.userId, photo))
+                            .catch(() => undefined);
+                        }}
+                      />
+                    </label>
+                  </>
                 )}
                 <Button variant="ghost" onClick={() => onReset(person)}>
                   Password
@@ -936,6 +990,7 @@ function PersonDialog({
   busy,
   onClose,
   onSave,
+  onPhoto,
 }: {
   person: AdminPerson | null;
   agents: AdminPerson[];
@@ -952,6 +1007,7 @@ function PersonDialog({
     deals: boolean;
     shareholder: boolean;
   }) => Promise<void>;
+  onPhoto: (userId: string, photo: string) => Promise<boolean>;
 }) {
   const [email, setEmail] = useState(person?.email ?? "");
   const [title, setTitle] = useState(person?.title ?? "");
@@ -991,6 +1047,44 @@ function PersonDialog({
             onChange={(event) => setEmail(event.target.value)}
             required
           />
+          <div className="flex items-center gap-3">
+            {person.photo ? (
+              <img src={person.photo} alt="" className="size-14 rounded-full object-cover" />
+            ) : (
+              <span className="grid size-14 place-items-center rounded-full bg-blush text-base font-semibold text-deep">
+                {initials(person.name)}
+              </span>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <label className="inline-flex h-10 cursor-pointer items-center rounded-sm bg-ink px-3 text-sm font-semibold text-white">
+                {person.photo ? "Replace headshot" : "Upload headshot"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={busy}
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (!file || !file.type.startsWith("image/")) return;
+                    void shrinkHeadshot(file)
+                      .then((photo) => onPhoto(person.userId, photo))
+                      .catch(() => undefined);
+                  }}
+                />
+              </label>
+              {person.photo ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onPhoto(person.userId, "")}
+                  className="h-10 rounded-sm border border-line px-3 text-sm font-semibold disabled:opacity-60"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          </div>
           <TextField label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
           <label className="block text-sm font-medium">
             Role

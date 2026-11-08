@@ -102,6 +102,7 @@ export type AdminPerson = {
   active: boolean;
   pending: boolean;
   hasPassword: boolean;
+  photo: string;
 };
 
 export type AdminSnapshot = {

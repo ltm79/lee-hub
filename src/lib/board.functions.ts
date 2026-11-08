@@ -91,12 +91,17 @@ export const loadDealBoard = createServerFn({ method: "GET" })
       select position, name, gross from deal_board_rows order by position
     `;
     if (!lines.length) return { ok: true, board: null };
-    const faces = await gate.db<{ name: string; photo: string }>`
-      select u.name, m.photo
-      from members m
-      join "user" u on u.id = m.user_id
-      where m.photo <> ''
-    `;
+    let faces: { name: string; photo: string }[] = [];
+    try {
+      faces = await gate.db<{ name: string; photo: string }>`
+        select u.name, m.photo
+        from members m
+        join "user" u on u.id = m.user_id
+        where m.photo <> ''
+      `;
+    } catch {
+      faces = [];
+    }
     return {
       ok: true,
       board: {
