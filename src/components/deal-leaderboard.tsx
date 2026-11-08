@@ -183,9 +183,11 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
                     {row.name}
                     {mine ? <span className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
                   </p>
-                  <a href={DEALS_URL} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-[11px] font-semibold text-crimson">
-                    See deals
-                  </a>
+                  {mine ? (
+                    <a href={DEALS_URL} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-[11px] font-semibold text-crimson">
+                      See deals
+                    </a>
+                  ) : null}
                   <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</p>
                 </li>
               );
@@ -228,14 +230,16 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
                           {row.name}
                           {mine ? <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-teal">You</span> : null}
                         </span>
-                        <a
-                          href={DEALS_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 rounded-[6px] border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-crimson hover:border-crimson"
-                        >
-                          See deals
-                        </a>
+                        {mine ? (
+                          <a
+                            href={DEALS_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 rounded-[6px] border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-crimson hover:border-crimson"
+                          >
+                            See deals
+                          </a>
+                        ) : null}
                         <span className="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-ink">{dollars(row.gross)}</span>
                       </div>
                       <div className="mt-1.5 ml-9 h-1.5 overflow-hidden rounded-full bg-paper">
