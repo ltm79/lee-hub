@@ -17,6 +17,7 @@ import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as PeopleRouteImport } from './routes/people'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as VouchersIdRouteImport } from './routes/vouchers/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -60,6 +61,11 @@ const PeopleRoute = PeopleRouteImport.update({
   path: '/people',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VouchersIdRoute = VouchersIdRouteImport.update({
   id: '/vouchers/$id',
   path: '/vouchers/$id',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/people': typeof PeopleRoute
+  '/profile': typeof ProfileRoute
   '/vouchers/$id': typeof VouchersIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/people': typeof PeopleRoute
+  '/profile': typeof ProfileRoute
   '/vouchers/$id': typeof VouchersIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/people': typeof PeopleRoute
+  '/profile': typeof ProfileRoute
   '/vouchers/$id': typeof VouchersIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/market'
     | '/people'
+    | '/profile'
     | '/vouchers/$id'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/market'
     | '/people'
+    | '/profile'
     | '/vouchers/$id'
     | '/api/auth/$'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/market'
     | '/people'
+    | '/profile'
     | '/vouchers/$id'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MarketRoute: typeof MarketRoute
   PeopleRoute: typeof PeopleRoute
+  ProfileRoute: typeof ProfileRoute
   VouchersIdRoute: typeof VouchersIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PeopleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vouchers/$id': {
       id: '/vouchers/$id'
       path: '/vouchers/$id'
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MarketRoute: MarketRoute,
   PeopleRoute: PeopleRoute,
+  ProfileRoute: ProfileRoute,
   VouchersIdRoute: VouchersIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

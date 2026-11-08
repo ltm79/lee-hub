@@ -24,7 +24,7 @@ export type BoardView = {
   asOfLabel: string;
   rangeLabel: string;
   updatedAt: string;
-  rows: { rank: number; name: string; gross: number }[];
+  rows: { rank: number; name: string; gross: number; photo: string }[];
 };
 
 type Gate =
@@ -41,6 +41,25 @@ async function requireMember(userId: string): Promise<Gate> {
   return { ok: true, admin: row.role === "admin", shareholder: flag(row.shareholder), db };
 }
 
+function personKey(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function samePerson(a: string, b: string) {
+  const left = personKey(a);
+  const right = personKey(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const aParts = left.split(" ");
+  const bParts = right.split(" ");
+  return aParts[0] === bParts[0] && aParts[aParts.length - 1] === bParts[bParts.length - 1];
+}
+
+function photoFor(name: string, faces: { name: string; photo: string }[]) {
+  const exact = faces.find((face) => personKey(face.name) === personKey(name));
+  if (exact) return exact.photo;
+  return faces.find((face) => samePerson(face.name, name))?.photo ?? "";
+}
 function cleanRows(value: unknown) {
   if (!Array.isArray(value)) return [];
   const rows: { name: string; gross: number }[] = [];
@@ -72,6 +91,12 @@ export const loadDealBoard = createServerFn({ method: "GET" })
       select position, name, gross from deal_board_rows order by position
     `;
     if (!lines.length) return { ok: true, board: null };
+    const faces = await gate.db<{ name: string; photo: string }>`
+      select u.name, m.photo
+      from members m
+      join "user" u on u.id = m.user_id
+      where m.photo <> ''
+    `;
     return {
       ok: true,
       board: {
@@ -83,6 +108,7 @@ export const loadDealBoard = createServerFn({ method: "GET" })
           rank: Number(line.position) || index + 1,
           name: line.name,
           gross: Number(line.gross),
+          photo: photoFor(line.name, faces),
         })),
       },
     };
