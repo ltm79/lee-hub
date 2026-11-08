@@ -137,7 +137,10 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
     <div className="mt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div>
-          <h3 className="text-lg font-semibold tracking-tight text-ink">Leaderboard</h3>
+          <h3 className="text-lg font-semibold tracking-tight text-ink">
+            Leaderboard
+            <span className="ml-2 text-xs font-normal text-muted">*the following is only viewable by Shareholders</span>
+          </h3>
           <p className="mt-0.5 text-sm text-muted">
             {asOf ? `Last updated on ${asOf}` : "Not published yet"}
             <span className="text-faint"> (data pulled Fridays at 4pm)</span>
