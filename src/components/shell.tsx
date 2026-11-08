@@ -52,7 +52,7 @@ export function hubGroups(
 const NAV: { id: DeskSection; label: string; to: "/" | "/market" | "/deals" | "/closed" | "/leaderboard" | "/people" | "/admin"; icon: typeof LayoutGrid }[] = [
   { id: "desk", label: "Hub", to: "/", icon: LayoutGrid },
   { id: "market", label: "Market Analytics", to: "/market", icon: BarChart3 },
-  { id: "deals", label: "Deals", to: "/deals", icon: Briefcase },
+  { id: "deals", label: "Deal Submission", to: "/deals", icon: Briefcase },
   { id: "closed", label: "Closed deals", to: "/closed", icon: BadgeCheck },
   { id: "board", label: "Dealius Leaderboard", to: "/leaderboard", icon: Trophy },
   { id: "people", label: "People", to: "/people", icon: Users },
