@@ -98,7 +98,7 @@ function NavList({
 
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.filter((item) => (item.id !== "admin" || isAdmin) && (item.id !== "deals" || canDeals) && (item.id !== "board" || canBoard)).map((item) => {
+      {NAV.filter((item) => (item.id !== "admin" || isAdmin) && (item.id !== "people" || isAdmin) && (item.id !== "closed" || isAdmin) && (item.id !== "deals" || canDeals) && (item.id !== "board" || canBoard)).map((item) => {
         const Icon = item.icon;
         const active = item.id === section;
         return (
