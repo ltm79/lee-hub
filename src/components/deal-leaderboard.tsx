@@ -24,15 +24,11 @@ function samePerson(a: string, b: string) {
   return aParts[0] === bParts[0] && aParts[aParts.length - 1] === bParts[bParts.length - 1];
 }
 
-function published(iso: string) {
-  const date = new Date(iso);
+function shortDate(value: string) {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  const date = iso ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])) : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
 function initials(name: string) {
@@ -104,7 +100,7 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
   const top = rows.slice(0, 5);
   const needle = query.trim().toLowerCase();
   const visible = needle ? rows.filter((row) => row.name.toLowerCase().includes(needle)) : rows;
-  const asOf = board?.asOfLabel || (board?.updatedAt ? published(board.updatedAt) : "");
+  const asOf = board ? shortDate(board.asOf) || shortDate(board.asOfLabel) || shortDate(board.updatedAt) : "";
 
   async function readFile(file: File) {
     setNote("");
@@ -143,8 +139,7 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-ink">Leaderboard</h3>
           <p className="mt-0.5 text-sm text-muted">
-            {asOf ? `Last updated ${asOf}` : "Not published yet"}
-            {board?.rangeLabel ? ` · ${board.rangeLabel}` : ""}
+            {asOf ? `Last updated on ${asOf}` : "Not published yet"}
             {board ? (
               <>
                 {" · "}
