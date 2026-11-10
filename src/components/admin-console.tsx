@@ -998,6 +998,7 @@ function PersonDialog({
   onClose: () => void;
   onSave: (draft: {
     userId: string;
+    name: string;
     role: MemberRole;
     active: boolean;
     title: string;
@@ -1009,6 +1010,7 @@ function PersonDialog({
   }) => Promise<void>;
   onPhoto: (userId: string, photo: string) => Promise<boolean>;
 }) {
+  const [name, setName] = useState(person?.name ?? "");
   const [email, setEmail] = useState(person?.email ?? "");
   const [title, setTitle] = useState(person?.title ?? "");
   const [role, setRole] = useState<MemberRole>(person?.role ?? "agent");
@@ -1021,6 +1023,7 @@ function PersonDialog({
   useEffect(() => {
     if (!person) return;
     setTitle(person.title);
+    setName(person.name);
     setEmail(person.email);
     setRole(person.role ?? "agent");
     setOffice(person.office ?? "");
@@ -1037,9 +1040,10 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, role, active, title, office, email, agentIds, deals, shareholder });
+            void onSave({ userId: person.userId, name, role, active, title, office, email, agentIds, deals, shareholder });
           }}
         >
+          <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
           <TextField
             label="Work email"
             type="email"

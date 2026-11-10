@@ -566,7 +566,7 @@ export const createLogin = createServerFn({ method: "POST" })
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; agentIds?: string[]; deals?: boolean; shareholder?: boolean }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; name?: string; agentIds?: string[]; deals?: boolean; shareholder?: boolean }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -600,6 +600,13 @@ export const updateMember = createServerFn({ method: "POST" })
     const users = await db<{ id: string; email: string }>`select id, email from "user" where id = ${userId}`;
     const account = users[0];
     if (!account) return { ok: false, error: "That person no longer exists." };
+
+    if (data?.name !== undefined) {
+      const name = clip(text(data.name), 80);
+      if (!name) return { ok: false, error: "Add the person's name." };
+      await db`update "user" set name = ${name}, "updatedAt" = now() where id = ${userId}`;
+      await db`update desk_members set name = ${name} where user_id = ${userId}`;
+    }
 
     const email = emailOf(data?.email);
     if (data?.email !== undefined && !email) return { ok: false, error: "Enter a work email." };
