@@ -123,7 +123,9 @@ export function UserButton() {
   return (
     <div className="flex items-center gap-2">
       {face ? (
-        <img src={face} alt="" className="h-8 w-8 rounded-full object-cover" />
+        <span className="block h-8 w-8 overflow-hidden rounded-full bg-black/10">
+          <img src={face} alt="" className="size-full origin-top object-cover object-[center_15%] translate-y-[10%] scale-[0.82]" />
+        </span>
       ) : (
         <span className="grid h-8 w-8 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
           {label.charAt(0).toUpperCase()}

@@ -27,9 +27,11 @@ export function shrinkHeadshot(file: File): Promise<string> {
       const scale = Math.max(size / image.width, size / image.height);
       const width = image.width * scale;
       const height = image.height * scale;
+      const x = (size - width) / 2;
+      const y = height > size ? (size - height) * 0.12 : (size - height) / 2;
       ctx.fillStyle = "#f5f5f7";
       ctx.fillRect(0, 0, size, size);
-      ctx.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+      ctx.drawImage(image, x, y, width, height);
       URL.revokeObjectURL(url);
       resolve(canvas.toDataURL("image/jpeg", 0.82));
     };

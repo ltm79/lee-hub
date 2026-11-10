@@ -24,11 +24,25 @@ function samePerson(a: string, b: string) {
   return aParts[0] === bParts[0] && aParts[aParts.length - 1] === bParts[bParts.length - 1];
 }
 
-function shortDate(value: string) {
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  const date = iso ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])) : new Date(value);
+function updatedLine(value: string) {
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  const minute = part("minute");
+  const hour = part("hour");
+  const ampm = part("dayPeriod").toLowerCase().replace(/\s/g, "");
+  const time = minute === "00" ? `${hour}${ampm}` : `${hour}:${minute}${ampm}`;
+  return `Updated- ${part("weekday")}, ${part("month")} ${part("day")}, ${part("year")} at ${time}`;
 }
 
 function initials(name: string) {
@@ -46,7 +60,16 @@ function Face({ name, photo, large }: { name: string; photo: string; large?: boo
   const [failed, setFailed] = useState(false);
   const box = large ? "size-16 text-base" : "size-8 text-[11px]";
   if (photo && !failed) {
-    return <img src={photo} alt="" onError={() => setFailed(true)} className={`${large ? "size-16" : "size-8"} rounded-full object-cover`} />;
+    return (
+      <span className={`block overflow-hidden rounded-full bg-blush ${large ? "size-16" : "size-8"}`}>
+        <img
+          src={photo}
+          alt=""
+          onError={() => setFailed(true)}
+          className="size-full origin-top object-cover object-[center_15%] translate-y-[10%] scale-[0.82]"
+        />
+      </span>
+    );
   }
   return (
     <span className={`grid ${box} place-items-center rounded-full bg-blush font-semibold text-deep`} aria-hidden="true">
@@ -100,7 +123,7 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
   const top = rows.slice(0, 5);
   const needle = query.trim().toLowerCase();
   const visible = needle ? rows.filter((row) => row.name.toLowerCase().includes(needle)) : rows;
-  const asOf = board ? shortDate(board.asOf) || shortDate(board.asOfLabel) || shortDate(board.updatedAt) : "";
+  const updated = board?.updatedAt ? updatedLine(board.updatedAt) : "";
 
   async function readFile(file: File) {
     setNote("");
@@ -142,8 +165,7 @@ export function DealLeaderboard({ isAdmin, viewerName }: { isAdmin: boolean; vie
             <span className="ml-2 text-xs font-normal text-muted">*the following is only viewable by Shareholders</span>
           </h3>
           <p className="mt-0.5 text-sm text-muted">
-            {asOf ? `Last updated on ${asOf}` : "Not published yet"}
-            <span className="text-faint"> (data pulled Fridays at 4pm)</span>
+            {updated || "Not published yet"}
             {board ? (
               <>
                 {" · "}

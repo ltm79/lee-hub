@@ -686,7 +686,9 @@ function PeoplePanel({
               className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 transition duration-200 ease-smooth-out hover:border-crimson sm:flex-row sm:items-center"
             >
               {person.photo ? (
-                <img src={person.photo} alt="" className="size-10 shrink-0 rounded-full object-cover" />
+                <span className="block size-10 shrink-0 overflow-hidden rounded-full bg-blush">
+                  <img src={person.photo} alt="" className="size-full origin-top object-cover object-[center_15%] translate-y-[10%] scale-[0.82]" />
+                </span>
               ) : (
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-blush text-sm font-semibold text-deep">
                   {initials(person.name)}
@@ -1053,7 +1055,9 @@ function PersonDialog({
           />
           <div className="flex items-center gap-3">
             {person.photo ? (
-              <img src={person.photo} alt="" className="size-14 rounded-full object-cover" />
+              <span className="block size-14 overflow-hidden rounded-full bg-blush">
+                <img src={person.photo} alt="" className="size-full origin-top object-cover object-[center_15%] translate-y-[10%] scale-[0.82]" />
+              </span>
             ) : (
               <span className="grid size-14 place-items-center rounded-full bg-blush text-base font-semibold text-deep">
                 {initials(person.name)}
