@@ -60,16 +60,7 @@ function Face({ name, photo, large }: { name: string; photo: string; large?: boo
   const [failed, setFailed] = useState(false);
   const box = large ? "size-16 text-base" : "size-8 text-[11px]";
   if (photo && !failed) {
-    return (
-      <span className={`block overflow-hidden rounded-full bg-blush ${large ? "size-16" : "size-8"}`}>
-        <img
-          src={photo}
-          alt=""
-          onError={() => setFailed(true)}
-          className="size-full origin-top object-cover object-[center_15%] translate-y-[10%] scale-[0.82]"
-        />
-      </span>
-    );
+    return <img src={photo} alt="" onError={() => setFailed(true)} className={`${large ? "size-16" : "size-8"} rounded-full object-cover`} />;
   }
   return (
     <span className={`grid ${box} place-items-center rounded-full bg-blush font-semibold text-deep`} aria-hidden="true">
