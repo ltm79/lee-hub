@@ -99,6 +99,7 @@ export type AdminPerson = {
   role: MemberRole | null;
   deals: boolean;
   shareholder: boolean;
+  operations: boolean;
   active: boolean;
   pending: boolean;
   hasPassword: boolean;

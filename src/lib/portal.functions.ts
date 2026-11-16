@@ -363,6 +363,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
       active: unknown;
       deals: unknown;
       shareholder: unknown;
+      operations: unknown;
       has_password: unknown;
     }>`
       select
@@ -375,6 +376,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         m.active,
         m.deals,
         m.shareholder,
+        m.operations,
         exists (
           select 1 from "account" a
           where a."userId" = u.id and a."providerId" = 'credential'
@@ -430,6 +432,7 @@ export const loadAdmin = createServerFn({ method: "GET" })
         pending,
         deals: flag(person.deals),
         shareholder: flag(person.shareholder),
+        operations: flag(person.operations),
         hasPassword: flag(person.has_password),
         photo: "",
       };
@@ -499,6 +502,7 @@ export const createLogin = createServerFn({ method: "POST" })
       agentIds?: string[];
       deals?: boolean;
       shareholder?: boolean;
+      operations?: boolean;
     }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
@@ -548,11 +552,12 @@ export const createLogin = createServerFn({ method: "POST" })
 
     const deals = role === "staff" && Boolean(data?.deals);
     const shareholder = role === "agent" && Boolean(data?.shareholder);
+    const operations = role === "staff" && Boolean(data?.operations);
     await db`
-      insert into members (user_id, role, active, title, office, deals, shareholder)
-      values (${userId}, ${role}, true, ${title}, ${office}, ${deals}, ${shareholder})
+      insert into members (user_id, role, active, title, office, deals, shareholder, operations)
+      values (${userId}, ${role}, true, ${title}, ${office}, ${deals}, ${shareholder}, ${operations})
       on conflict (user_id) do update
-      set role = ${role}, active = true, title = ${title}, office = ${office}, deals = ${deals}, shareholder = ${shareholder}
+      set role = ${role}, active = true, title = ${title}, office = ${office}, deals = ${deals}, shareholder = ${shareholder}, operations = ${operations}
     `;
     await db`
       update desk_members
@@ -566,7 +571,7 @@ export const createLogin = createServerFn({ method: "POST" })
 export const updateMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; name?: string; agentIds?: string[]; deals?: boolean; shareholder?: boolean }) => data,
+    (data: { userId?: string; role?: string; active?: boolean; title?: string; office?: string; email?: string; name?: string; agentIds?: string[]; deals?: boolean; shareholder?: boolean; operations?: boolean }) => data,
   )
   .handler(async ({ context, data }): Promise<ActionResult> => {
     const gate = await requireAdmin(context.userId);
@@ -629,12 +634,13 @@ export const updateMember = createServerFn({ method: "POST" })
 
     const deals = role === "staff" && Boolean(data?.deals);
     const shareholder = role === "agent" && Boolean(data?.shareholder);
+    const operations = role === "staff" && Boolean(data?.operations);
     if (office) {
       await db`
-        insert into members (user_id, role, active, title, office, deals, shareholder)
-        values (${userId}, ${role}, ${active}, ${title}, ${office}, ${deals}, ${shareholder})
+        insert into members (user_id, role, active, title, office, deals, shareholder, operations)
+        values (${userId}, ${role}, ${active}, ${title}, ${office}, ${deals}, ${shareholder}, ${operations})
         on conflict (user_id) do update
-        set role = ${role}, active = ${active}, title = ${title}, office = ${office}, deals = ${deals}, shareholder = ${shareholder}
+        set role = ${role}, active = ${active}, title = ${title}, office = ${office}, deals = ${deals}, shareholder = ${shareholder}, operations = ${operations}
       `;
       await db`
         update desk_members
@@ -643,10 +649,10 @@ export const updateMember = createServerFn({ method: "POST" })
       `;
     } else {
       await db`
-        insert into members (user_id, role, active, title, deals, shareholder)
-        values (${userId}, ${role}, ${active}, ${title}, ${deals}, ${shareholder})
+        insert into members (user_id, role, active, title, deals, shareholder, operations)
+        values (${userId}, ${role}, ${active}, ${title}, ${deals}, ${shareholder}, ${operations})
         on conflict (user_id) do update
-        set role = ${role}, active = ${active}, title = ${title}, deals = ${deals}, shareholder = ${shareholder}
+        set role = ${role}, active = ${active}, title = ${title}, deals = ${deals}, shareholder = ${shareholder}, operations = ${operations}
       `;
       await db`
         update desk_members

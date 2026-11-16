@@ -708,6 +708,8 @@ function PeoplePanel({
                             }`
                           : ""
                       }${person.role === "staff" && person.deals ? " · Deals" : ""}${
+                        person.role === "staff" && person.operations ? " · OM" : ""
+                      }${
                         person.role === "agent" && person.shareholder ? " · Shareholder" : ""
                       }${person.title ? ` · ${person.title}` : ""}${person.active ? "" : " · Off"}`}
                   {person.hasPassword ? "" : " · No password yet"}
@@ -872,6 +874,7 @@ function LoginDialog({
     agentIds: string[];
     deals: boolean;
     shareholder: boolean;
+    operations: boolean;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -883,6 +886,7 @@ function LoginDialog({
   const [agentIds, setAgentIds] = useState<string[]>([]);
   const [deals, setDeals] = useState(false);
   const [shareholder, setShareholder] = useState(false);
+  const [operations, setOperations] = useState(false);
 
   return (
     <Modal
@@ -895,7 +899,7 @@ function LoginDialog({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onCreate({ name, email, password, title, role, office, agentIds, deals, shareholder });
+          void onCreate({ name, email, password, title, role, office, agentIds, deals, shareholder, operations });
         }}
       >
         <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
@@ -954,15 +958,26 @@ function LoginDialog({
         ) : null}
         {role === "assistant" ? <AgentChecks agents={agents} selected={agentIds} onChange={setAgentIds} /> : null}
         {role === "staff" ? (
-          <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={deals}
-              onChange={(event) => setDeals(event.target.checked)}
-              className="size-5 accent-crimson"
-            />
-            Can open Deals and receive voucher notices
-          </label>
+          <>
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={deals}
+                onChange={(event) => setDeals(event.target.checked)}
+                className="size-5 accent-crimson"
+              />
+              Can open Deals and receive voucher notices
+            </label>
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={operations}
+                onChange={(event) => setOperations(event.target.checked)}
+                className="size-5 accent-crimson"
+              />
+              Operations manager — approves staff calendar requests
+            </label>
+          </>
         ) : null}
         <div className="flex flex-col gap-2">
           <TextField
@@ -1007,6 +1022,7 @@ function PersonDialog({
     agentIds: string[];
     deals: boolean;
     shareholder: boolean;
+    operations: boolean;
   }) => Promise<void>;
   onPhoto: (userId: string, photo: string) => Promise<boolean>;
 }) {
@@ -1018,6 +1034,7 @@ function PersonDialog({
   const [agentIds, setAgentIds] = useState<string[]>(person?.agentIds ?? []);
   const [deals, setDeals] = useState(person?.deals ?? false);
   const [shareholder, setShareholder] = useState(person?.shareholder ?? false);
+  const [operations, setOperations] = useState(person?.operations ?? false);
   const [active, setActive] = useState(person?.active ?? true);
 
   useEffect(() => {
@@ -1030,6 +1047,7 @@ function PersonDialog({
     setAgentIds(person.agentIds ?? []);
     setDeals(Boolean(person.deals));
     setShareholder(Boolean(person.shareholder));
+    setOperations(Boolean(person.operations));
     setActive(person.active);
   }, [person]);
 
@@ -1040,7 +1058,7 @@ function PersonDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void onSave({ userId: person.userId, name, role, active, title, office, email, agentIds, deals, shareholder });
+            void onSave({ userId: person.userId, name, role, active, title, office, email, agentIds, deals, shareholder, operations });
           }}
         >
           <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
@@ -1138,15 +1156,26 @@ function PersonDialog({
             </label>
           ) : null}
           {role === "staff" ? (
-            <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={deals}
-                onChange={(event) => setDeals(event.target.checked)}
-                className="size-5 accent-crimson"
-              />
-              Can open Deals and receive voucher notices
-            </label>
+            <>
+              <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={deals}
+                  onChange={(event) => setDeals(event.target.checked)}
+                  className="size-5 accent-crimson"
+                />
+                Can open Deals and receive voucher notices
+              </label>
+              <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={operations}
+                  onChange={(event) => setOperations(event.target.checked)}
+                  className="size-5 accent-crimson"
+                />
+                Operations manager — approves staff calendar requests
+              </label>
+            </>
           ) : null}
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
             <input
