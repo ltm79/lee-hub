@@ -211,7 +211,6 @@ export function StaffCalendar() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-deep">Office</p>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Staff Calendar</h1>
-          <p className="mt-1 text-sm text-muted">Everyone can see approved time. Staff send a request. An operations manager approves it.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canRequest ? (
@@ -224,7 +223,7 @@ export function StaffCalendar() {
                 setFormError("");
                 setOpen("request");
               }}
-              className="h-10 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white"
+              className="h-10 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white transition duration-150 hover:bg-deep"
             >
               Request time
             </button>
@@ -237,7 +236,7 @@ export function StaffCalendar() {
                 setTitle("");
                 setOpen("office");
               }}
-              className="h-10 rounded-[6px] border border-line bg-surface px-3 text-sm font-semibold text-ink"
+              className="h-10 rounded-[6px] border border-line bg-surface px-3 text-sm font-semibold text-ink transition duration-150 hover:border-deep hover:bg-paper"
             >
               Add office date
             </button>
@@ -262,7 +261,7 @@ export function StaffCalendar() {
           <h2 className="text-sm font-semibold text-deep">Pending requests · {myPending.length}</h2>
           <ul className="mt-2 flex flex-col gap-2">
             {myPending.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-white px-3 py-2">
+              <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-white px-3 py-2 transition duration-150 hover:bg-blush">
                 <div>
                   <p className="text-sm font-semibold text-ink">{event.title}</p>
                   <p className="text-xs text-muted">
@@ -282,16 +281,16 @@ export function StaffCalendar() {
           <h2 className="text-sm font-semibold text-ink">Waiting for approval · {pending.length}</h2>
           <ul className="mt-2 flex flex-col gap-2">
             {pending.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-paper px-3 py-2">
+              <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-paper px-3 py-2 transition duration-150 hover:bg-blush">
                 <div>
                   <p className="text-sm font-semibold text-ink">{event.personName} · {event.title}</p>
                   <p className="text-xs text-muted">{pretty(event.start)} – {pretty(event.end)}{event.note ? ` · ${event.note}` : ""}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" disabled={busy} onClick={() => void decide(event.id, "approved")} className="h-8 rounded-[6px] bg-deep px-3 text-xs font-semibold text-white disabled:opacity-60">
+                  <button type="button" disabled={busy} onClick={() => void decide(event.id, "approved")} className="h-8 rounded-[6px] bg-deep px-3 text-xs font-semibold text-white transition duration-150 hover:bg-ink disabled:opacity-60">
                     Approve
                   </button>
-                  <button type="button" disabled={busy} onClick={() => void decide(event.id, "denied")} className="h-8 rounded-[6px] border border-line px-3 text-xs font-semibold text-ink disabled:opacity-60">
+                  <button type="button" disabled={busy} onClick={() => void decide(event.id, "denied")} className="h-8 rounded-[6px] border border-line px-3 text-xs font-semibold text-ink transition duration-150 hover:border-crimson hover:text-crimson disabled:opacity-60">
                     Decline
                   </button>
                 </div>
@@ -303,11 +302,11 @@ export function StaffCalendar() {
 
       <div className="mt-4 overflow-hidden rounded-[6px] border border-line bg-surface">
         <div className="flex items-center justify-between border-b border-line px-3 py-2">
-          <button type="button" onClick={() => shift(-1)} className="grid size-9 place-items-center rounded-md hover:bg-paper" aria-label="Previous month">
+          <button type="button" onClick={() => shift(-1)} className="grid size-9 place-items-center rounded-md transition duration-150 hover:bg-blush" aria-label="Previous month">
             <ChevronLeft className="size-4" />
           </button>
           <h2 className="text-sm font-semibold text-ink">{label}</h2>
-          <button type="button" onClick={() => shift(1)} className="grid size-9 place-items-center rounded-md hover:bg-paper" aria-label="Next month">
+          <button type="button" onClick={() => shift(1)} className="grid size-9 place-items-center rounded-md transition duration-150 hover:bg-blush" aria-label="Next month">
             <ChevronRight className="size-4" />
           </button>
         </div>
@@ -325,7 +324,7 @@ export function StaffCalendar() {
                 const key = iso(day);
                 const outside = day.getMonth() !== cursor.month;
                 return (
-                  <div key={key} className="min-h-24 border-l border-line p-1 first:border-l-0">
+                  <div key={key} className="min-h-24 border-l border-line p-1 transition duration-150 first:border-l-0 hover:bg-paper">
                     <span className={key === todayIso ? "inline-grid size-6 place-items-center rounded-full bg-ink text-xs font-semibold text-white" : outside ? "text-xs text-faint" : "text-xs font-medium text-ink"}>
                       {day.getDate()}
                     </span>
@@ -338,7 +337,7 @@ export function StaffCalendar() {
                     key={`${event.id}-${iso(week[0])}`}
                     type="button"
                     onClick={() => setSelected(event)}
-                    className={`pointer-events-auto absolute h-5 truncate rounded-sm px-1.5 text-left text-[11px] font-semibold ${KINDS[event.kind]?.bar ?? "bg-ink text-white"}`}
+                    className={`pointer-events-auto absolute h-5 truncate rounded-sm px-1.5 text-left text-[11px] font-semibold transition duration-150 hover:brightness-110 ${KINDS[event.kind]?.bar ?? "bg-ink text-white"}`}
                     style={{ left: `${(col / 7) * 100}%`, width: `calc(${(span / 7) * 100}% - 4px)`, top: lane * 22, marginLeft: 2 }}
                   >
                     {eventLabel(event)}
@@ -355,7 +354,7 @@ export function StaffCalendar() {
           <h2 className="text-sm font-semibold text-ink">Your requests</h2>
           <ul className="mt-2 flex flex-col gap-1">
             {myRest.slice(0, 8).map((event) => (
-              <li key={event.id} className="flex items-center justify-between gap-3 text-sm">
+              <li key={event.id} className="flex items-center justify-between gap-3 rounded-sm px-1 text-sm transition duration-150 hover:bg-paper">
                 <span className="truncate text-ink">{event.title} · {pretty(event.start)}</span>
                 <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">{event.status}</span>
               </li>
@@ -374,7 +373,7 @@ export function StaffCalendar() {
             {selected.reviewerName ? <p className="mt-2 text-xs text-muted">Approved by {selected.reviewerName}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {selected.status === "approved" ? (
-                <button type="button" onClick={() => printSlip(selected)} className="inline-flex h-10 items-center gap-2 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white">
+                <button type="button" onClick={() => printSlip(selected)} className="inline-flex h-10 items-center gap-2 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white transition duration-150 hover:bg-deep">
                   <Printer className="size-4" />
                   Print
                 </button>
@@ -392,12 +391,12 @@ export function StaffCalendar() {
                       }
                     });
                   }}
-                  className="h-10 rounded-[6px] border border-line px-3 text-sm font-semibold text-ink"
+                  className="h-10 rounded-[6px] border border-line px-3 text-sm font-semibold text-ink transition duration-150 hover:border-crimson hover:text-crimson"
                 >
                   Remove
                 </button>
               ) : null}
-              <button type="button" onClick={() => setSelected(null)} className="h-10 px-3 text-sm font-semibold text-muted">
+              <button type="button" onClick={() => setSelected(null)} className="h-10 px-3 text-sm font-semibold text-muted transition duration-150 hover:text-ink">
                 Close
               </button>
             </div>
@@ -465,10 +464,10 @@ export function StaffCalendar() {
             ) : null}
             {formError && open === "request" ? <p className="mt-3 text-sm text-deep">{formError}</p> : null}
             <div className="mt-4 flex gap-2">
-              <button type="submit" disabled={busy} className="h-10 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white disabled:opacity-60">
+              <button type="submit" disabled={busy} className="h-10 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white transition duration-150 hover:bg-deep disabled:opacity-60">
                 {busy ? "Saving…" : open === "request" ? "Send request" : "Add"}
               </button>
-              <button type="button" onClick={() => setOpen(null)} className="h-10 px-3 text-sm font-semibold text-muted">
+              <button type="button" onClick={() => setOpen(null)} className="h-10 px-3 text-sm font-semibold text-muted transition duration-150 hover:text-ink">
                 Cancel
               </button>
             </div>
