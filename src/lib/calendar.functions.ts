@@ -134,6 +134,7 @@ async function mail(fromEmail: string, fromName: string, to: string[], subject: 
       text_body: body,
       custom_headers: [{ header: "Reply-To", value: fromEmail }],
     }),
+    signal: AbortSignal.timeout(8000),
   });
   return response.ok;
 }
@@ -224,13 +225,18 @@ export const submitCalendarRequest = createServerFn({ method: "POST" })
     const proto = request.headers.get("x-forwarded-proto") || "https";
     const link = host ? `${proto}://${host}/calendar` : "/calendar";
     const to = await reviewers(member.db, context.userId);
-    const mailed = await mail(
-      member.email,
-      member.name,
-      to,
-      `Calendar request — ${member.name}`,
-      [`${member.name} submitted a staff calendar request.`, "", `${title}`, `${start} through ${end}`, note, "", "Open Lee Hub to approve or decline it:", link].filter(Boolean).join("\n"),
-    );
+    let mailed = false;
+    try {
+      mailed = await mail(
+        member.email,
+        member.name,
+        to,
+        `Calendar request — ${member.name}`,
+        [`${member.name} submitted a staff calendar request.`, "", `${title}`, `${start} through ${end}`, note, "", "Open Lee Hub to approve or decline it:", link].filter(Boolean).join("\n"),
+      );
+    } catch {
+      mailed = false;
+    }
     return { ok: true, mailed };
   });
 

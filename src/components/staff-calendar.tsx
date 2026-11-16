@@ -111,6 +111,7 @@ export function StaffCalendar() {
   const [canReview, setCanReview] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<"request" | "office" | null>(null);
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
@@ -153,17 +154,20 @@ export function StaffCalendar() {
 
   async function sendRequest() {
     setBusy(true);
-    const result = await submitCalendarRequest({ data: { kind, title, note: detail, start, end } }).catch(() => ({
+    const result = await submitCalendarRequest({ data: { kind, title, note: detail, start, end } }).catch((error: unknown) => ({
       ok: false as const,
-      error: "The request could not be sent.",
+      error: error instanceof Error && error.message ? error.message : "The request could not be sent.",
     }));
     setBusy(false);
     if (!result.ok) {
-      setNote(result.error);
+      setFormError(result.error || "The request could not be sent.");
       return;
     }
     setOpen(null);
-    setNote(result.mailed ? "Request sent to the operations manager." : "Request saved. Email the operations manager if they do not see it.");
+    setDetail("");
+    setStart("");
+    setEnd("");
+    setNote("Request has been submitted.");
     reload();
   }
 
@@ -215,6 +219,7 @@ export function StaffCalendar() {
                 setKind("ooo");
                 setTitle("Out of Office");
                 setDetail("");
+                setFormError("");
                 setOpen("request");
               }}
               className="h-10 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white"
@@ -436,6 +441,7 @@ export function StaffCalendar() {
                 <textarea value={detail} onChange={(event) => setDetail(event.target.value)} className="mt-1 h-20 w-full rounded-sm border border-line px-3 py-2 text-sm font-normal" />
               </label>
             ) : null}
+            {formError && open === "request" ? <p className="mt-3 text-sm text-deep">{formError}</p> : null}
             <div className="mt-4 flex gap-2">
               <button type="submit" disabled={busy} className="h-10 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white disabled:opacity-60">
                 {busy ? "Saving…" : open === "request" ? "Send request" : "Add"}
