@@ -144,6 +144,8 @@ export function StaffCalendar() {
 
   const cells = useMemo(() => monthCells(cursor.year, cursor.month), [cursor]);
   const weeks = [0, 1, 2, 3, 4, 5].map((index) => cells.slice(index * 7, index * 7 + 7));
+  const myPending = mine.filter((event) => event.status === "pending");
+  const myRest = mine.filter((event) => event.status !== "pending");
   const label = new Date(cursor.year, cursor.month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const todayIso = iso(today);
 
@@ -255,6 +257,26 @@ export function StaffCalendar() {
         ))}
       </div>
 
+      {myPending.length > 0 ? (
+        <section className="mt-4 rounded-[6px] border border-sand bg-cream p-3">
+          <h2 className="text-sm font-semibold text-deep">Pending requests · {myPending.length}</h2>
+          <ul className="mt-2 flex flex-col gap-2">
+            {myPending.map((event) => (
+              <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-white px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold text-ink">{event.title}</p>
+                  <p className="text-xs text-muted">
+                    {pretty(event.start)} – {pretty(event.end)}
+                    {event.note ? ` · ${event.note}` : ""}
+                  </p>
+                </div>
+                <span className="rounded-sm bg-sand px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Pending</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {pending.length > 0 ? (
         <section className="mt-4 rounded-[6px] border border-line bg-surface p-3">
           <h2 className="text-sm font-semibold text-ink">Waiting for approval · {pending.length}</h2>
@@ -328,11 +350,11 @@ export function StaffCalendar() {
         })}
       </div>
 
-      {mine.length > 0 && canRequest ? (
+      {myRest.length > 0 && canRequest ? (
         <section className="mt-4">
           <h2 className="text-sm font-semibold text-ink">Your requests</h2>
           <ul className="mt-2 flex flex-col gap-1">
-            {mine.slice(0, 8).map((event) => (
+            {myRest.slice(0, 8).map((event) => (
               <li key={event.id} className="flex items-center justify-between gap-3 text-sm">
                 <span className="truncate text-ink">{event.title} · {pretty(event.start)}</span>
                 <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">{event.status}</span>
