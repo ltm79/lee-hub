@@ -94,7 +94,7 @@ function Kpi({
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-line bg-surface p-4 shadow-card">
+    <section className="rounded-xl border border-line bg-surface p-4 shadow-card transition duration-200 ease-smooth-out hover:shadow-lift">
       <h2 className="text-sm font-semibold text-ink">{title}</h2>
       <div className="mt-3 h-64">{children}</div>
     </section>
@@ -241,7 +241,7 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
         </p>
       ) : (
         <>
-          <div className="mt-5 grid overflow-hidden rounded-xl border border-line bg-surface shadow-card sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid overflow-hidden rounded-xl border border-line bg-surface shadow-card transition duration-200 ease-smooth-out hover:shadow-lift sm:grid-cols-2 xl:grid-cols-4">
             <div className="border-b border-line sm:border-r xl:border-b-0">
               <Kpi label="Overall vacancy" value={percent(chosenPeriod.vacancyRate)} field="vacancyRate" qoq={qoqOf("vacancyRate")} yoy={yoyOf("vacancyRate")} />
             </div>
@@ -262,7 +262,7 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
               ["Cap rate", percent(chosenPeriod.capRate)],
               ["Sales activity", compactSf(chosenPeriod.salesSf)],
             ].map(([label, value]) => (
-              <div key={label} className="shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 shadow-card transition duration-150 hover:border-deep">
+              <div key={label} className="shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 shadow-card transition duration-200 ease-smooth-out hover:border-deep hover:shadow-lift">
                 <span className="text-[11px] text-muted">{label}</span>
                 <span className="ml-2 text-sm font-semibold tabular-nums text-ink">{value}</span>
               </div>
@@ -280,8 +280,8 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
               onClick={() => setTab(item)}
               className={
                 tab === item
-                  ? "shrink-0 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white"
-                  : "shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-muted transition duration-150 hover:bg-paper hover:text-ink"
+                  ? "shrink-0 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white shadow-card"
+                  : "shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-muted transition duration-150 hover:bg-paper hover:text-ink hover:shadow-card"
               }
             >
               {item}
@@ -380,7 +380,7 @@ function Overview({
           bars={[{ key: "vacancy", name: "Vacancy %", color: CRIMSON }]}
           lines={[{ key: "availability", name: "Availability %", color: TEAL }]}
         />
-        <section className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
+        <section className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card transition duration-200 ease-smooth-out hover:shadow-lift">
           <h2 className="px-4 pt-4 text-sm font-semibold text-ink">Historic comparison</h2>
           <table className="mt-2 w-full min-w-[36rem] text-left text-sm">
             <thead className="text-[11px] uppercase tracking-wide text-muted">
@@ -411,7 +411,7 @@ function Overview({
         </section>
       </div>
       <aside className="grid content-start gap-4 lg:col-span-2">
-        <section className="rounded-xl border border-line bg-surface p-4 shadow-card">
+        <section className="rounded-xl border border-line bg-surface p-4 shadow-card transition duration-200 ease-smooth-out hover:shadow-lift">
           <h2 className="text-sm font-semibold text-ink">Market trends</h2>
           <ul className="mt-3 grid gap-3">
             {notes.map((note) => (
@@ -422,7 +422,7 @@ function Overview({
           </ul>
         </section>
         {current.notes ? (
-          <section className="rounded-xl border border-line bg-blush p-4 shadow-card">
+          <section className="rounded-xl border border-line bg-blush p-4 shadow-card transition duration-200 ease-smooth-out hover:shadow-lift">
             <h2 className="text-sm font-semibold text-deep">Note on this quarter</h2>
             <p className="mt-2 text-sm leading-6 text-ink">{current.notes}</p>
           </section>
@@ -459,7 +459,7 @@ function Places({ places }: { places: MarketPoint[] }) {
           </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card transition duration-200 ease-smooth-out hover:shadow-lift">
         <table className="w-full min-w-[48rem] text-left text-sm">
           <thead className="text-[11px] uppercase tracking-wide text-muted">
             <tr>
