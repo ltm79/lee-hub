@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import {
   loadCalendar,
   postOfficeEvent,
@@ -79,26 +79,82 @@ function lanesFor(events: CalendarEvent[], week: Date[]) {
   });
 }
 
-function printSlip(event: CalendarEvent) {
-  const kind = KINDS[event.kind]?.label ?? event.kind;
-  const page = window.open("", "calendar-slip", "noopener,width=720,height=900");
-  if (!page) return;
-  const line = (label: string, value: string) =>
-    `<p style="margin:0 0 14px"><span style="display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#667"> ${label}</span><span style="font-size:18px">${value}</span></p>`;
-  page.document.write(`<!doctype html><html><head><title>${eventLabel(event)}</title></head><body style="font-family:Georgia,serif;color:#1a1a1a;padding:48px;max-width:640px">
-    <p style="letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:#9a1b2e;margin:0">Lee Hub · Staff Calendar</p>
-    <h1 style="font-size:32px;margin:8px 0 4px">Approved request</h1>
-    <p style="margin:0 0 28px;color:#444">${kind}</p>
-    ${line("Name", event.personName || "Office")}
-    ${line("Calendar", event.title)}
-    ${line("Dates", `${pretty(event.start)} – ${pretty(event.end)}`)}
-    ${event.note ? line("Note", event.note) : ""}
-    ${line("Approved by", event.reviewerName || "Operations")}
-    ${event.reviewedAt ? line("Approved", pretty(event.reviewedAt.slice(0, 10))) : ""}
-    <p style="margin-top:36px;font-size:12px;color:#667">This copy is for office records.</p>
-    <script>addEventListener("load",()=>print())<\/script>
-  </body></html>`);
-  page.document.close();
+function approvedWhen(value: string) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  const minute = part("minute");
+  const ampm = part("dayPeriod").toLowerCase().replace(/\s/g, "");
+  const time = minute === "00" ? `${part("hour")}${ampm}` : `${part("hour")}:${minute}${ampm}`;
+  return `${part("weekday")}, ${part("month")} ${part("day")}, ${part("year")} at ${time}`;
+}
+
+function pdfText(value: string) {
+  return value.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+async function confirmationPdf(event: CalendarEvent) {
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([612, 792]);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const ink = rgb(0.12, 0.12, 0.13);
+  const muted = rgb(0.38, 0.38, 0.42);
+  const crimson = rgb(0.6, 0.11, 0.18);
+  const stamp = approvedWhen(event.reviewedAt) || "Approved";
+  let y = 700;
+  page.drawRectangle({ x: 0, y: 742, width: 612, height: 50, color: crimson });
+  page.drawText("LEE & ASSOCIATES", { x: 56, y: 764, size: 11, font: bold, color: rgb(1, 1, 1) });
+  page.drawText("Lee Hub  ·  Staff Calendar", { x: 56, y: 750, size: 9, font, color: rgb(1, 1, 1) });
+  y = 690;
+  page.drawText("Time off confirmation", { x: 56, y, size: 22, font: bold, color: ink });
+  y -= 22;
+  page.drawText("APPROVED", { x: 56, y, size: 12, font: bold, color: crimson });
+  const rows: [string, string][] = [
+    ["Name", event.personName || "Staff"],
+    ["Type", KINDS[event.kind]?.label ?? "Time off"],
+    ["Calendar", event.title],
+    ["From", pretty(event.start)],
+    ["Through", pretty(event.end)],
+    ["Note", event.note || "None"],
+    ["Approved by", event.reviewerName || "Operations"],
+    ["Approved", stamp],
+  ];
+  y -= 36;
+  for (const [label, value] of rows) {
+    page.drawText(label.toUpperCase(), { x: 56, y, size: 8, font: bold, color: muted });
+    y -= 16;
+    const line = pdfText(value).slice(0, 88) || "None";
+    page.drawText(line, { x: 56, y, size: 13, font, color: ink });
+    y -= 26;
+  }
+  page.drawText("One-page office record. This confirms the request was approved in Lee Hub.", {
+    x: 56,
+    y: 64,
+    size: 9,
+    font,
+    color: muted,
+  });
+  const bytes = await doc.save();
+  const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const who = pdfText(event.personName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "staff";
+  link.href = url;
+  link.download = `time-off-${who}.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function StaffCalendar() {
@@ -371,11 +427,12 @@ export function StaffCalendar() {
             <p className="mt-2 text-sm text-muted">{pretty(selected.start)} – {pretty(selected.end)}</p>
             {selected.note ? <p className="mt-2 text-sm text-ink">{selected.note}</p> : null}
             {selected.reviewerName ? <p className="mt-2 text-xs text-muted">Approved by {selected.reviewerName}</p> : null}
+            {selected.reviewedAt ? <p className="mt-1 text-xs text-muted">Approved {approvedWhen(selected.reviewedAt)}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2">
-              {selected.status === "approved" ? (
-                <button type="button" onClick={() => printSlip(selected)} className="inline-flex h-10 items-center gap-2 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white transition duration-150 hover:bg-deep">
-                  <Printer className="size-4" />
-                  Print
+              {canReview && selected.status === "approved" && selected.personName ? (
+                <button type="button" onClick={() => void confirmationPdf(selected)} className="inline-flex h-10 items-center gap-2 rounded-[6px] bg-ink px-3 text-sm font-semibold text-white transition duration-150 hover:bg-deep">
+                  <FileDown className="size-4" />
+                  PDF confirmation
                 </button>
               ) : null}
               {canReview ? (
