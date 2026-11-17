@@ -5,7 +5,7 @@ import { MarketInsight } from "@/components/market-dashboard";
 export const Route = createFileRoute("/market")({
   component: MarketPage,
   head: () => ({
-    meta: [{ title: "Market Insight · Lee Hub" }],
+    meta: [{ title: "Market Analytics · Lee Hub" }],
   }),
 });
 

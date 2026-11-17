@@ -50,12 +50,12 @@ function Select({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-widest text-muted">
+    <label className="grid gap-1 text-[11px] font-medium text-muted">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-md border border-line bg-surface px-3 text-sm font-medium normal-case tracking-normal text-ink"
+        className="h-10 rounded-lg border border-transparent bg-surface px-3 text-sm font-medium text-ink transition duration-150 hover:border-line focus:border-deep focus:outline-none"
       >
         {options.map((option) => (
           <option key={option.value || "all"} value={option.value}>
@@ -81,12 +81,12 @@ function Kpi({
   yoy: number | null;
 }) {
   return (
-    <article className="rounded-lg border border-line bg-surface px-4 py-4 shadow-card">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">{label}</p>
-      <p className="mt-2 font-serif text-4xl tracking-tight text-ink">{value}</p>
-      <p className="mt-3 flex gap-3 text-xs font-semibold">
-        <span className={deltaTone(field, yoy)}>YoY {deltaText(yoy) || "—"}</span>
-        <span className={deltaTone(field, qoq)}>QoQ {deltaText(qoq) || "—"}</span>
+    <article className="px-4 py-4">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className="mt-1 text-3xl font-semibold tracking-tight text-ink">{value}</p>
+      <p className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+        <span className={`rounded-full bg-paper px-2 py-0.5 ${deltaTone(field, yoy)}`}>YoY {deltaText(yoy) || "—"}</span>
+        <span className={`rounded-full bg-paper px-2 py-0.5 ${deltaTone(field, qoq)}`}>QoQ {deltaText(qoq) || "—"}</span>
       </p>
     </article>
   );
@@ -94,7 +94,7 @@ function Kpi({
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
+    <section className="rounded-xl border border-line bg-surface p-4">
       <h2 className="text-sm font-semibold text-ink">{title}</h2>
       <div className="mt-3 h-64">{children}</div>
     </section>
@@ -185,17 +185,19 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-deep">Market Insight</p>
-          <h1 className="mt-1 font-serif text-4xl tracking-tight text-ink">{placeTitle}</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-deep">Market Analytics</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">{placeTitle}</h1>
           <p className="mt-1 text-sm text-muted">
             Industrial
-            {chosenPeriod ? ` · ${quarterName(chosenPeriod.quarter)} quarter ${chosenPeriod.year}` : ""}
-            {series.rolled ? " · Added up from the places underneath" : ""}
+            {chosenPeriod ? ` · ${quarterName(chosenPeriod.quarter)} ${chosenPeriod.year}` : ""}
+            {series.rolled ? " · rolled up from the places below" : ""}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-white p-2 sm:grid-cols-4">
           <Select
             label="Market"
             value={chosenMarket}
@@ -230,7 +232,6 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
             })}
             onChange={setPeriod}
           />
-        </div>
       </div>
 
       {error ? <p className="mt-4 text-sm text-red-deep">{error}</p> : null}
@@ -240,13 +241,19 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
         </p>
       ) : (
         <>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Overall vacancy" value={percent(chosenPeriod.vacancyRate)} field="vacancyRate" qoq={qoqOf("vacancyRate")} yoy={yoyOf("vacancyRate")} />
-            <Kpi label="Asking lease rate NNN" value={rent(chosenPeriod.askingRent)} field="askingRent" qoq={qoqOf("askingRent")} yoy={yoyOf("askingRent")} />
-            <Kpi label="Leasing activity" value={compactSf(chosenPeriod.leasingSf)} field="leasingSf" qoq={qoqOf("leasingSf")} yoy={yoyOf("leasingSf")} />
+          <div className="mt-5 grid overflow-hidden rounded-xl border border-line bg-surface sm:grid-cols-2 xl:grid-cols-4">
+            <div className="border-b border-line sm:border-r xl:border-b-0">
+              <Kpi label="Overall vacancy" value={percent(chosenPeriod.vacancyRate)} field="vacancyRate" qoq={qoqOf("vacancyRate")} yoy={yoyOf("vacancyRate")} />
+            </div>
+            <div className="border-b border-line xl:border-r xl:border-b-0">
+              <Kpi label="Asking lease rate NNN" value={rent(chosenPeriod.askingRent)} field="askingRent" qoq={qoqOf("askingRent")} yoy={yoyOf("askingRent")} />
+            </div>
+            <div className="border-b border-line sm:border-r sm:border-b-0 xl:border-r">
+              <Kpi label="Leasing activity" value={compactSf(chosenPeriod.leasingSf)} field="leasingSf" qoq={qoqOf("leasingSf")} yoy={yoyOf("leasingSf")} />
+            </div>
             <Kpi label="Under construction" value={compactSf(chosenPeriod.underConstructionSf)} field="underConstructionSf" qoq={qoqOf("underConstructionSf")} yoy={yoyOf("underConstructionSf")} />
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {[
               ["Inventory", compactSf(chosenPeriod.inventorySf)],
               ["Net absorption", compactSf(chosenPeriod.absorptionSf)],
@@ -255,30 +262,32 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
               ["Cap rate", percent(chosenPeriod.capRate)],
               ["Sales activity", compactSf(chosenPeriod.salesSf)],
             ].map(([label, value]) => (
-              <div key={label} className="bg-surface px-3 py-3">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-ink">{value}</p>
+              <div key={label} className="shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 transition duration-150 hover:border-deep">
+                <span className="text-[11px] text-muted">{label}</span>
+                <span className="ml-2 text-sm font-semibold tabular-nums text-ink">{value}</span>
               </div>
             ))}
           </div>
         </>
       )}
 
-      <div className="mt-6 flex gap-1 overflow-x-auto border-b border-line">
-        {TABS.filter((item) => item !== "Data" || isAdmin).map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => setTab(item)}
-            className={
-              tab === item
-                ? "shrink-0 border-b-2 border-deep px-3 py-2 text-sm font-semibold text-deep"
-                : "shrink-0 px-3 py-2 text-sm font-medium text-muted hover:text-ink"
-            }
-          >
-            {item}
-          </button>
-        ))}
+      <div className="sticky top-0 z-10 -mx-1 mt-5 bg-paper/95 px-1 py-2 backdrop-blur">
+        <div className="flex gap-1 overflow-x-auto rounded-xl bg-white p-1">
+          {TABS.filter((item) => item !== "Data" || isAdmin).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setTab(item)}
+              className={
+                tab === item
+                  ? "shrink-0 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white"
+                  : "shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-muted transition duration-150 hover:bg-paper hover:text-ink"
+              }
+            >
+              {item}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "Data" && isAdmin ? (
@@ -371,7 +380,7 @@ function Overview({
           bars={[{ key: "vacancy", name: "Vacancy %", color: CRIMSON }]}
           lines={[{ key: "availability", name: "Availability %", color: TEAL }]}
         />
-        <section className="overflow-x-auto rounded-lg border border-line bg-surface shadow-card">
+        <section className="overflow-x-auto rounded-xl border border-line bg-surface">
           <h2 className="px-4 pt-4 text-sm font-semibold text-ink">Historic comparison</h2>
           <table className="mt-2 w-full min-w-[36rem] text-left text-sm">
             <thead className="text-[11px] uppercase tracking-wide text-muted">
@@ -387,7 +396,7 @@ function Overview({
             <tbody>
               {history.map(([label, field, format]) =>
                 current[field] == null && priorQ?.[field] == null && priorY?.[field] == null ? null : (
-                  <tr key={label} className="border-t border-line">
+                  <tr key={label} className="border-t border-line transition duration-150 hover:bg-paper">
                     <td className="px-4 py-2 text-ink-soft">{label}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{format(priorY?.[field] ?? null)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{format(priorQ?.[field] ?? null)}</td>
@@ -402,7 +411,7 @@ function Overview({
         </section>
       </div>
       <aside className="grid content-start gap-4 lg:col-span-2">
-        <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
+        <section className="rounded-xl border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold text-ink">Market trends</h2>
           <ul className="mt-3 grid gap-3">
             {notes.map((note) => (
@@ -413,7 +422,7 @@ function Overview({
           </ul>
         </section>
         {current.notes ? (
-          <section className="rounded-lg border border-line bg-blush p-4">
+          <section className="rounded-xl border border-line bg-blush p-4">
             <h2 className="text-sm font-semibold text-deep">Note on this quarter</h2>
             <p className="mt-2 text-sm leading-6 text-ink">{current.notes}</p>
           </section>
@@ -450,7 +459,7 @@ function Places({ places }: { places: MarketPoint[] }) {
           </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
         <table className="w-full min-w-[48rem] text-left text-sm">
           <thead className="text-[11px] uppercase tracking-wide text-muted">
             <tr>
@@ -461,7 +470,7 @@ function Places({ places }: { places: MarketPoint[] }) {
           </thead>
           <tbody>
             {places.map((place) => (
-              <tr key={place.id || placeName(place)} className="border-t border-line">
+              <tr key={place.id || placeName(place)} className="border-t border-line transition duration-150 hover:bg-paper">
                 <td className="px-3 py-2 font-medium">{placeName(place)}</td>
                 <td className="px-3 py-2 tabular-nums">{compactSf(place.inventorySf)}</td>
                 <td className="px-3 py-2 tabular-nums">{percent(place.vacancyRate)}</td>
