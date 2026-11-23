@@ -29,9 +29,10 @@ import {
   rent,
   resolveSeries,
 } from "@/lib/market.metrics";
+import { SUBMARKETS } from "@/lib/market.places";
 import type { MarketField, MarketPoint } from "@/lib/market.types";
 
-const TABS = ["Overview", "Vacancy", "Rent", "Leasing", "Construction", "Sales", "Places", "Data"] as const;
+const TABS = ["Overview", "Submarkets", "Vacancy", "Rent", "Leasing", "Construction", "Sales", "Places", "Data"] as const;
 type Tab = (typeof TABS)[number];
 
 const CRIMSON = "#cd163f";
@@ -294,6 +295,17 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
 
       {tab === "Data" && isAdmin ? (
         <MarketData rows={rows} onChanged={reload} />
+      ) : tab === "Submarkets" ? (
+        <SubmarketBoard
+          rows={rows}
+          onOpen={(name, label) => {
+            setMarket(name);
+            setSubmarket("");
+            setCity("");
+            setPeriod(label);
+            setTab("Overview");
+          }}
+        />
       ) : !chosenPeriod ? null : tab === "Overview" ? (
         <Overview
           current={chosenPeriod}
@@ -330,6 +342,90 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
           ) : null}
         </div>
       )}
+    </div>
+  );
+}
+
+function SubmarketBoard({ rows, onOpen }: { rows: MarketPoint[]; onOpen: (name: string, label: string) => void }) {
+  const periods = useMemo(() => {
+    const seen = new Map<string, { year: number; quarter: number }>();
+    for (const row of rows) {
+      if (!(SUBMARKETS as readonly string[]).includes(row.market) || row.submarket || row.city) continue;
+      seen.set(periodLabel(row.year, row.quarter), { year: row.year, quarter: row.quarter });
+    }
+    return [...seen.entries()].sort((a, b) => b[1].year - a[1].year || b[1].quarter - a[1].quarter);
+  }, [rows]);
+  const [picked, setPicked] = useState(periods[0]?.[0] ?? "");
+  const label = periods.some(([name]) => name === picked) ? picked : (periods[0]?.[0] ?? "");
+  const period = periods.find(([name]) => name === label)?.[1];
+  const cards = SUBMARKETS.map((name) => {
+    const total = period
+      ? rows.find((row) => row.market === name && !row.submarket && !row.city && row.year === period.year && row.quarter === period.quarter) ?? null
+      : null;
+    const cities = period
+      ? rows
+          .filter((row) => row.market === name && row.city && row.year === period.year && row.quarter === period.quarter)
+          .sort((a, b) => (b.inventorySf ?? 0) - (a.inventorySf ?? 0))
+      : [];
+    return { name, total, cities };
+  });
+  const peak = Math.max(10, ...cards.map((card) => card.total?.vacancyRate ?? 0));
+  if (!period) {
+    return <p className="mt-6 text-sm text-muted">Upload a quarter for one of the six submarkets to compare them.</p>;
+  }
+  return (
+    <div className="mt-4 grid gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Submarket segmentation</h2>
+          <p className="mt-1 text-sm text-muted">Same quarter across the six submarkets. Open one for its history. Cities show under a submarket after they are uploaded.</p>
+        </div>
+        <label className="grid gap-1 text-[11px] font-medium text-muted">
+          Quarter
+          <select value={label} onChange={(event) => setPicked(event.target.value)} className="h-10 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink">
+            {periods.map(([name]) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {cards.map((card) => (
+          <button
+            key={card.name}
+            type="button"
+            onClick={() => onOpen(card.name, label)}
+            className="rounded-xl border border-line bg-surface p-4 text-left shadow-card transition duration-150 hover:border-deep"
+          >
+            <p className="text-sm font-semibold text-ink">{card.name}</p>
+            {card.total ? (
+              <>
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-ink">{percent(card.total.vacancyRate)}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Vacancy</p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper">
+                  <div className="h-full rounded-full bg-deep" style={{ width: `${Math.min(100, ((card.total.vacancyRate ?? 0) / peak) * 100)}%` }} />
+                </div>
+                <p className="mt-3 text-sm text-ink-soft">
+                  {rent(card.total.askingRent)} NNN · {compactSf(card.total.absorptionSf)} absorption
+                </p>
+                <p className="mt-1 text-xs text-muted">{compactSf(card.total.inventorySf)} inventory</p>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-muted">No {label} total yet.</p>
+            )}
+            {card.cities.length ? (
+              <ul className="mt-3 grid gap-1 border-t border-line pt-3">
+                {card.cities.slice(0, 4).map((city) => (
+                  <li key={city.id || city.city} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate text-ink">{city.city}</span>
+                    <span className="shrink-0 tabular-nums text-muted">{percent(city.vacancyRate)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
