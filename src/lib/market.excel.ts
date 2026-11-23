@@ -181,7 +181,7 @@ export function parseMarketSheet(buffer: ArrayBuffer): { rows: MarketInput[]; er
 
 export const MARKET_TEMPLATE = [
   "Market,Submarket,City,Year,Quarter,Inventory SF,Vacancy Rate,Availability Rate,Asking Rent,Direct Rent,Leasing Activity SF,Net Absorption SF,Under Construction SF,Completions SF,Sale Price PSF,Cap Rate,Sales Volume,Sales SF,Transactions,Buildings,Vacant SF,Sublet SF,Available SF,Notes",
-  "San Gabriel Valley,,,2026,3,175268454,5.8,6.7,1.40,,1790763,-290936,446944,,,,1946053,,,,,Quarter total for this submarket. Leave City blank. Uploading again replaces this quarter.",
+  "San Gabriel Valley,,,2026,3,175268454,5.8,6.7,1.40,,1790763,-290936,446944,,,,1946053,,,,,Quarter total. Leave City blank. A later upload does not replace this unless you choose replace.",
 ].join("\n");
 
 const METRIC_LABELS: { field: keyof MarketInput; pattern: RegExp }[] = [

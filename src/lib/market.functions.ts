@@ -193,60 +193,78 @@ export const saveMarketPoint = createServerFn({ method: "POST" })
 
 export const importMarketPoints = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data: { rows?: MarketInput[] }) => data)
-  .handler(async ({ context, data }): Promise<{ ok: true; saved: number } | { ok: false; error: string }> => {
+  .validator((data: { rows?: MarketInput[]; replace?: boolean }) => data)
+  .handler(async ({ context, data }): Promise<{ ok: true; saved: number; skipped: number } | { ok: false; error: string }> => {
     const gate = await requireMember(context.userId);
     if (!gate.ok) return gate;
     if (!gate.admin) return { ok: false, error: "An administrator has to import market figures." };
     const incoming = Array.isArray(data?.rows) ? data.rows.slice(0, 2000) : [];
     if (!incoming.length) return { ok: false, error: "Nothing to import." };
+    const replace = data?.replace === true;
     let saved = 0;
+    let skipped = 0;
     for (const row of incoming) {
       const cleaned = cleanInput({ ...row, source: row.source === "pdf" ? "pdf" : "excel" });
       if (!cleaned.ok) continue;
       const point = cleaned.value;
       const source = point.source === "pdf" ? "pdf" : "excel";
-      await gate.db`
-        insert into market_points (
-          id, market, submarket, city, year, quarter,
-          inventory_sf, vacancy_rate, availability_rate, asking_rent, direct_rent,
-          leasing_sf, absorption_sf, under_construction_sf, completions_sf,
-          sale_price_psf, cap_rate, sales_volume, sales_sf, transactions, buildings,
-          vacant_sf, sublet_sf, available_sf, notes, source, updated_at
-        ) values (
-          ${crypto.randomUUID()}, ${point.market}, ${point.submarket}, ${point.city}, ${point.year}, ${point.quarter},
-          ${point.inventorySf}, ${point.vacancyRate}, ${point.availabilityRate}, ${point.askingRent}, ${point.directRent},
-          ${point.leasingSf}, ${point.absorptionSf}, ${point.underConstructionSf}, ${point.completionsSf},
-          ${point.salePricePsf}, ${point.capRate}, ${point.salesVolume}, ${point.salesSf}, ${point.transactions}, ${point.buildings},
-          ${point.vacantSf}, ${point.subletSf}, ${point.availableSf}, ${point.notes}, ${source}, now()
-        )
-        on conflict (market, submarket, city, year, quarter) do update set
-          inventory_sf = excluded.inventory_sf,
-          vacancy_rate = excluded.vacancy_rate,
-          availability_rate = excluded.availability_rate,
-          asking_rent = excluded.asking_rent,
-          direct_rent = excluded.direct_rent,
-          leasing_sf = excluded.leasing_sf,
-          absorption_sf = excluded.absorption_sf,
-          under_construction_sf = excluded.under_construction_sf,
-          completions_sf = excluded.completions_sf,
-          sale_price_psf = excluded.sale_price_psf,
-          cap_rate = excluded.cap_rate,
-          sales_volume = excluded.sales_volume,
-          sales_sf = excluded.sales_sf,
-          transactions = excluded.transactions,
-          buildings = excluded.buildings,
-          vacant_sf = excluded.vacant_sf,
-          sublet_sf = excluded.sublet_sf,
-          available_sf = excluded.available_sf,
-          notes = excluded.notes,
-          source = excluded.source,
-          updated_at = now()
+      const existing = await gate.db<{ id: string }>`
+        select id from market_points
+        where market = ${point.market} and submarket = ${point.submarket} and city = ${point.city}
+          and year = ${point.year} and quarter = ${point.quarter}
       `;
+      if (existing[0] && !replace) {
+        skipped += 1;
+        continue;
+      }
+      if (existing[0]) {
+        await gate.db`
+          update market_points set
+            inventory_sf = ${point.inventorySf},
+            vacancy_rate = ${point.vacancyRate},
+            availability_rate = ${point.availabilityRate},
+            asking_rent = ${point.askingRent},
+            direct_rent = ${point.directRent},
+            leasing_sf = ${point.leasingSf},
+            absorption_sf = ${point.absorptionSf},
+            under_construction_sf = ${point.underConstructionSf},
+            completions_sf = ${point.completionsSf},
+            sale_price_psf = ${point.salePricePsf},
+            cap_rate = ${point.capRate},
+            sales_volume = ${point.salesVolume},
+            sales_sf = ${point.salesSf},
+            transactions = ${point.transactions},
+            buildings = ${point.buildings},
+            vacant_sf = ${point.vacantSf},
+            sublet_sf = ${point.subletSf},
+            available_sf = ${point.availableSf},
+            notes = ${point.notes},
+            source = ${source},
+            updated_at = now()
+          where id = ${existing[0].id}
+        `;
+      } else {
+        await gate.db`
+          insert into market_points (
+            id, market, submarket, city, year, quarter,
+            inventory_sf, vacancy_rate, availability_rate, asking_rent, direct_rent,
+            leasing_sf, absorption_sf, under_construction_sf, completions_sf,
+            sale_price_psf, cap_rate, sales_volume, sales_sf, transactions, buildings,
+            vacant_sf, sublet_sf, available_sf, notes, source, updated_at
+          ) values (
+            ${crypto.randomUUID()}, ${point.market}, ${point.submarket}, ${point.city}, ${point.year}, ${point.quarter},
+            ${point.inventorySf}, ${point.vacancyRate}, ${point.availabilityRate}, ${point.askingRent}, ${point.directRent},
+            ${point.leasingSf}, ${point.absorptionSf}, ${point.underConstructionSf}, ${point.completionsSf},
+            ${point.salePricePsf}, ${point.capRate}, ${point.salesVolume}, ${point.salesSf}, ${point.transactions}, ${point.buildings},
+            ${point.vacantSf}, ${point.subletSf}, ${point.availableSf}, ${point.notes}, ${source}, now()
+          )
+        `;
+      }
       saved += 1;
     }
+    if (!saved && skipped) return { ok: false, error: "That quarter is already saved. Check replace to overwrite it." };
     if (!saved) return { ok: false, error: "None of those rows had a market, year, and quarter." };
-    return { ok: true, saved };
+    return { ok: true, saved, skipped };
   });
 
 export const deleteMarketPoint = createServerFn({ method: "POST" })

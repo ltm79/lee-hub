@@ -1,18 +1,5 @@
-import {
-  asQuarterTotal,
-  chooseUploadRow,
-  metricsFromGrid,
-  metricsFromText,
-  parseMarketSheet,
-} from "@/lib/market.excel";
+import { chooseUploadRow, metricsFromGrid, metricsFromText, parseMarketSheet } from "@/lib/market.excel";
 import type { MarketInput } from "@/lib/market.types";
-
-export type UploadPlace = {
-  submarket: string;
-  city: string;
-  year: number;
-  quarter: number;
-};
 
 export type UploadRead = {
   row: MarketInput | null;
@@ -24,11 +11,7 @@ function filePeriod(row: MarketInput | null) {
   return `${row.year} Q${row.quarter}`;
 }
 
-function chosen(place: UploadPlace) {
-  return `${place.year} Q${place.quarter}`;
-}
-
-export async function readMarketUpload(file: File, place: UploadPlace): Promise<UploadRead> {
+export async function readMarketUpload(file: File): Promise<UploadRead> {
   const buffer = await file.arrayBuffer();
   const pdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
   if (pdf) {
@@ -36,17 +19,13 @@ export async function readMarketUpload(file: File, place: UploadPlace): Promise<
     const parsed = metricsFromText(text);
     if (!parsed) return { row: null, note: "No figures were found in that PDF. Use the Excel template, or type the quarter." };
     const seen = filePeriod(parsed);
-    const row = asQuarterTotal(parsed, place, "pdf");
-    const note = seen && seen !== chosen(place) ? `The PDF looks like ${seen}. This will replace ${chosen(place)}.` : "";
-    return { row, note };
+    return { row: { ...parsed, source: "pdf" }, note: seen ? `The file looks like ${seen}. Choose the quarter to save.` : "Choose the submarket, year, and quarter for this file." };
   }
   const sheet = parseMarketSheet(buffer);
-  const picked = chooseUploadRow(sheet.rows, place.submarket) ?? metricsFromGrid(buffer);
+  const picked = chooseUploadRow(sheet.rows, "") ?? metricsFromGrid(buffer);
   if (!picked) return { row: null, note: sheet.errors[0] ?? "No figures were found in that file." };
   const seen = filePeriod(picked);
-  const row = asQuarterTotal(picked, place, "excel");
-  const note = seen && seen !== chosen(place) ? `The file looks like ${seen}. This will replace ${chosen(place)}.` : sheet.errors[0] ?? "";
-  return { row, note };
+  return { row: { ...picked, source: "excel" }, note: seen ? `The file looks like ${seen}. Choose the quarter to save.` : "Choose the submarket, year, and quarter for this file." };
 }
 
 async function textFromPdf(buffer: ArrayBuffer) {
