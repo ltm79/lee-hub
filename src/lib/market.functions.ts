@@ -202,9 +202,10 @@ export const importMarketPoints = createServerFn({ method: "POST" })
     if (!incoming.length) return { ok: false, error: "Nothing to import." };
     let saved = 0;
     for (const row of incoming) {
-      const cleaned = cleanInput({ ...row, source: "excel" });
+      const cleaned = cleanInput({ ...row, source: row.source === "pdf" ? "pdf" : "excel" });
       if (!cleaned.ok) continue;
       const point = cleaned.value;
+      const source = point.source === "pdf" ? "pdf" : "excel";
       await gate.db`
         insert into market_points (
           id, market, submarket, city, year, quarter,
@@ -217,7 +218,7 @@ export const importMarketPoints = createServerFn({ method: "POST" })
           ${point.inventorySf}, ${point.vacancyRate}, ${point.availabilityRate}, ${point.askingRent}, ${point.directRent},
           ${point.leasingSf}, ${point.absorptionSf}, ${point.underConstructionSf}, ${point.completionsSf},
           ${point.salePricePsf}, ${point.capRate}, ${point.salesVolume}, ${point.salesSf}, ${point.transactions}, ${point.buildings},
-          ${point.vacantSf}, ${point.subletSf}, ${point.availableSf}, ${point.notes}, 'excel', now()
+          ${point.vacantSf}, ${point.subletSf}, ${point.availableSf}, ${point.notes}, ${source}, now()
         )
         on conflict (market, submarket, city, year, quarter) do update set
           inventory_sf = excluded.inventory_sf,
@@ -239,7 +240,7 @@ export const importMarketPoints = createServerFn({ method: "POST" })
           sublet_sf = excluded.sublet_sf,
           available_sf = excluded.available_sf,
           notes = excluded.notes,
-          source = 'excel',
+          source = excluded.source,
           updated_at = now()
       `;
       saved += 1;

@@ -64,7 +64,7 @@ function headerKey(value: unknown) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
-function numberOf(value: unknown): number | null {
+export function numberOf(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (value == null) return null;
   let text = String(value).trim();
@@ -181,6 +181,127 @@ export function parseMarketSheet(buffer: ArrayBuffer): { rows: MarketInput[]; er
 
 export const MARKET_TEMPLATE = [
   "Market,Submarket,City,Year,Quarter,Inventory SF,Vacancy Rate,Availability Rate,Asking Rent,Direct Rent,Leasing Activity SF,Net Absorption SF,Under Construction SF,Completions SF,Sale Price PSF,Cap Rate,Sales Volume,Sales SF,Transactions,Buildings,Vacant SF,Sublet SF,Available SF,Notes",
-  "San Gabriel Valley,,,2026,3,175268454,5.8,6.7,1.40,,1790763,-290936,446944,,,,1946053,,,,,Q3 market total. Leave submarket and city blank.",
-  "San Gabriel Valley,Example Submarket,Example City,2026,3,1000000,5.0,6.0,1.25,1.20,200000,50000,0,,300,5.5,10000000,33000,1,20,,,,,Delete this sample row.",
+  "San Gabriel Valley,,,2026,3,175268454,5.8,6.7,1.40,,1790763,-290936,446944,,,,1946053,,,,,Quarter total for this submarket. Leave City blank. Uploading again replaces this quarter.",
 ].join("\n");
+
+const METRIC_LABELS: { field: keyof MarketInput; pattern: RegExp }[] = [
+  { field: "inventorySf", pattern: /(?:total\s+)?inventory(?:\s+sf)?/i },
+  { field: "vacancyRate", pattern: /(?:overall\s+)?vacancy(?:\s+rate)?/i },
+  { field: "availabilityRate", pattern: /(?:overall\s+)?availability(?:\s+rate)?/i },
+  { field: "askingRent", pattern: /(?:overall\s+)?asking(?:\s+lease)?\s+rate(?:\s+nnn)?|asking\s+rent(?:\s+nnn)?/i },
+  { field: "directRent", pattern: /direct\s+rent/i },
+  { field: "leasingSf", pattern: /leasing\s+activity(?:\s+sf)?/i },
+  { field: "absorptionSf", pattern: /net\s+absorption(?:\s+sf)?/i },
+  { field: "underConstructionSf", pattern: /under\s+construction(?:\s+sf)?/i },
+  { field: "completionsSf", pattern: /completions(?:\s+sf)?|deliveries(?:\s+sf)?/i },
+  { field: "salePricePsf", pattern: /(?:avg(?:erage)?\s+)?sale\s+price(?:\s*\/\s*sf|\s+psf)?/i },
+  { field: "capRate", pattern: /cap\s+rate/i },
+  { field: "salesVolume", pattern: /sales\s+volume/i },
+  { field: "salesSf", pattern: /sales\s+activity(?:\s+sf)?|sales\s+sf/i },
+  { field: "transactions", pattern: /transactions|sales\s+count/i },
+  { field: "buildings", pattern: /(?:existing\s+)?buildings/i },
+  { field: "vacantSf", pattern: /vacant\s+sf/i },
+  { field: "subletSf", pattern: /sublet\s+sf/i },
+  { field: "availableSf", pattern: /available\s+sf/i },
+];
+
+function numberAfter(text: string, index: number) {
+  const slice = text.slice(index, index + 64);
+  const re = /-?\(?\$?\s*\d[\d,]*(?:\.\d+)?%?\)?/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(slice))) {
+    const amount = numberOf(match[0]);
+    if (amount == null) continue;
+    if (amount >= 1990 && amount <= 2100 && !match[0].includes(".")) continue;
+    return amount;
+  }
+  return null;
+}
+
+export function metricsFromText(text: string): MarketInput | null {
+  const draft = blank();
+  let found = 0;
+  for (const label of METRIC_LABELS) {
+    const match = label.pattern.exec(text);
+    if (!match) continue;
+    const amount = numberAfter(text, match.index + match[0].length);
+    if (amount == null) continue;
+    assignCell(draft, label.field, amount);
+    found += 1;
+  }
+  const period = periodOf(text) ?? quarterInText(text);
+  if (period) {
+    draft.year = period.year;
+    draft.quarter = period.quarter;
+  }
+  return found ? draft : null;
+}
+
+function quarterInText(text: string) {
+  const yearFirst = /(20\d{2})\s*q([1-4])/i.exec(text);
+  if (yearFirst) return { year: Number(yearFirst[1]), quarter: Number(yearFirst[2]) };
+  const quarterFirst = /q([1-4])\s*(20\d{2})/i.exec(text);
+  if (quarterFirst) return { year: Number(quarterFirst[2]), quarter: Number(quarterFirst[1]) };
+  return null;
+}
+
+export function metricsFromGrid(buffer: ArrayBuffer): MarketInput | null {
+  const book = XLSX.read(buffer, { type: "array" });
+  const name = book.SheetNames[0];
+  if (!name) return null;
+  const sheet = book.Sheets[name];
+  if (!sheet) return null;
+  const grid = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, raw: true, defval: null });
+  const draft = blank();
+  let found = 0;
+  for (const line of grid) {
+    const cells = (line ?? []).filter((cell) => cell != null && String(cell).trim() !== "");
+    if (cells.length < 2) continue;
+    const field = HEADERS[headerKey(cells[0])];
+    if (!field || field === "market" || field === "submarket" || field === "city") continue;
+    if (field === "period") {
+      const period = periodOf(cells[1]);
+      if (period) {
+        draft.year = period.year;
+        draft.quarter = period.quarter;
+      }
+      continue;
+    }
+    assignCell(draft, field, cells[1]);
+    found += 1;
+  }
+  if (!found) {
+    const text = grid.map((line) => (line ?? []).map((cell) => String(cell ?? "")).join(" ")).join("\n");
+    return metricsFromText(text);
+  }
+  return draft;
+}
+
+export function chooseUploadRow(rows: MarketInput[], submarket: string) {
+  if (!rows.length) return null;
+  const name = submarket.trim().toLowerCase();
+  return (
+    rows.find((row) => row.market.trim().toLowerCase() === name && !row.submarket && !row.city) ??
+    rows.find((row) => `${row.market} ${row.submarket}`.toLowerCase().includes(name) && !row.city) ??
+    rows.find((row) => !row.city) ??
+    rows[0] ??
+    null
+  );
+}
+
+export function asQuarterTotal(
+  row: MarketInput,
+  place: { submarket: string; city: string; year: number; quarter: number },
+  source: string,
+): MarketInput {
+  return {
+    ...row,
+    market: place.submarket,
+    submarket: "",
+    city: place.city.trim(),
+    year: place.year,
+    quarter: place.quarter,
+    source,
+  };
+}
+

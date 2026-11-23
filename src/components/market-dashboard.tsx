@@ -197,9 +197,9 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-white p-2 shadow-card sm:grid-cols-4">
+      <div className={`mt-4 grid grid-cols-2 gap-2 rounded-xl bg-white p-2 shadow-card ${submarkets.length ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
           <Select
-            label="Market"
+            label="Submarket"
             value={chosenMarket}
             options={markets.map((name) => ({ value: name, label: name }))}
             onChange={(value) => {
@@ -208,15 +208,17 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
               setCity("");
             }}
           />
-          <Select
-            label="Submarket"
-            value={chosenSub}
-            options={[{ value: "", label: "All" }, ...submarkets.map((name) => ({ value: name, label: name }))]}
-            onChange={(value) => {
-              setSubmarket(value);
-              setCity("");
-            }}
-          />
+          {submarkets.length > 0 ? (
+            <Select
+              label="Breakout"
+              value={chosenSub}
+              options={[{ value: "", label: "All" }, ...submarkets.map((name) => ({ value: name, label: name }))]}
+              onChange={(value) => {
+                setSubmarket(value);
+                setCity("");
+              }}
+            />
+          ) : null}
           <Select
             label="City"
             value={chosenCity}
