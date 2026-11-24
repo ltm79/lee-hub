@@ -311,14 +311,21 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
           }}
         />
       ) : !chosenPeriod ? null : tab === "Overview" ? (
-        <Overview
-          current={chosenPeriod}
-          priorQ={priorQ}
-          priorY={priorY}
-          chartRows={chartRows}
-          qoqOf={qoqOf}
-          yoyOf={yoyOf}
-        />
+        <>
+          <Overview
+            current={chosenPeriod}
+            priorQ={priorQ}
+            priorY={priorY}
+            chartRows={chartRows}
+            qoqOf={qoqOf}
+            yoyOf={yoyOf}
+          />
+          <QuarterSummaries
+            points={series.points}
+            active={periodLabel(chosenPeriod.year, chosenPeriod.quarter)}
+            onOpen={setPeriod}
+          />
+        </>
       ) : tab === "Places" ? (
         <Places places={places} />
       ) : (
@@ -586,6 +593,35 @@ function quarterStory(current: MarketPoint, priorQ: MarketPoint | null, priorY: 
     lines.push(`${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`);
   }
   return lines;
+}
+
+function QuarterSummaries({ points, active, onOpen }: { points: MarketPoint[]; active: string; onOpen: (label: string) => void }) {
+  const newest = [...points].reverse();
+  if (newest.length < 2) return null;
+  return (
+    <section className="mt-4 rounded-xl border border-line bg-surface shadow-card">
+      <div className="px-4 pt-4">
+        <h2 className="text-sm font-semibold text-ink">Every quarter</h2>
+        <p className="mt-1 text-sm text-muted">A short read on each quarter, newest first. Open one to put it on the chart.</p>
+      </div>
+      <ul className="mt-3 max-h-[32rem] divide-y divide-line overflow-y-auto">
+        {newest.map((point) => {
+          const label = periodLabel(point.year, point.quarter);
+          const prior = priorPeriod(point.year, point.quarter, 1);
+          const yearAgo = priorPeriod(point.year, point.quarter, 4);
+          const lines = quarterStory(point, findPoint(points, prior.year, prior.quarter), findPoint(points, yearAgo.year, yearAgo.quarter));
+          return (
+            <li key={label}>
+              <button type="button" onClick={() => onOpen(label)} className={`w-full px-4 py-3 text-left transition duration-150 hover:bg-paper ${label === active ? "bg-blush" : ""}`}>
+                <span className="text-sm font-semibold text-ink">{label}</span>
+                <span className="mt-1 block text-sm leading-6 text-ink-soft">{lines.join(" ")}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 function Places({ places }: { places: MarketPoint[] }) {
