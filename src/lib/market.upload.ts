@@ -1,4 +1,4 @@
-import { hasFigures, metricsByQuarter, metricsFromGrid, metricsFromText, parseMarketSheet, parseWideQuarters } from "@/lib/market.excel";
+import { hasFigures, metricsByQuarter, metricsFromGrid, metricsFromText, parseMarketSheet, parsePeriodHistory, parseWideQuarters } from "@/lib/market.excel";
 import type { MarketInput } from "@/lib/market.types";
 
 export type UploadRead = {
@@ -12,8 +12,12 @@ function labelOf(row: MarketInput) {
 }
 
 function summary(rows: MarketInput[]) {
-  const labels = [...new Set(rows.map(labelOf))];
-  return labels.length === 1 ? labels[0] ?? "" : labels.join(", ");
+  const sorted = [...rows].sort((a, b) => a.year - b.year || a.quarter - b.quarter);
+  const first = sorted[0] ? labelOf(sorted[0]) : "";
+  const last = sorted[sorted.length - 1] ? labelOf(sorted[sorted.length - 1]!) : "";
+  if (!first) return "";
+  if (rows.length === 1 || first === last) return first;
+  return `${rows.length} quarters, ${first} through ${last}`;
 }
 
 export async function readMarketUpload(file: File): Promise<UploadRead> {
@@ -35,11 +39,15 @@ export async function readMarketUpload(file: File): Promise<UploadRead> {
     };
   }
   const sheet = parseMarketSheet(buffer).rows.filter(hasFigures);
+  const history = parsePeriodHistory(buffer);
   const wide = parseWideQuarters(buffer);
   const datedRows = sheet.filter((row) => row.year >= 1990 && row.quarter >= 1 && row.quarter <= 4);
   const periods = new Set(datedRows.map((row) => `${row.year}-${row.quarter}`));
   if (datedRows.length >= 2 || periods.size >= 2) {
     return { rows: datedRows.map((row) => ({ ...row, source: "excel" })), dated: true, note: `Found ${summary(datedRows)} in the file.` };
+  }
+  if (history.length >= 1 && !datedRows.length) {
+    return { rows: history.map((row) => ({ ...row, source: "excel" })), dated: true, note: `Found ${summary(history)} in the file.` };
   }
   if (wide.length >= 2) {
     return { rows: wide.map((row) => ({ ...row, source: "excel" })), dated: true, note: `Found ${summary(wide)} across the columns.` };

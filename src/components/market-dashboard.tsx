@@ -258,13 +258,17 @@ export function MarketInsight({ isAdmin }: { isAdmin: boolean }) {
           </div>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {[
-              ["Inventory", compactSf(chosenPeriod.inventorySf)],
-              ["Net absorption", compactSf(chosenPeriod.absorptionSf)],
-              ["Availability", percent(chosenPeriod.availabilityRate)],
-              ["Sale price", price(chosenPeriod.salePricePsf)],
-              ["Cap rate", percent(chosenPeriod.capRate)],
-              ["Sales activity", compactSf(chosenPeriod.salesSf)],
-            ].map(([label, value]) => (
+              ["Inventory", chosenPeriod.inventorySf == null ? "" : compactSf(chosenPeriod.inventorySf)],
+              ["Net absorption", chosenPeriod.absorptionSf == null ? "" : compactSf(chosenPeriod.absorptionSf)],
+              ["Availability", chosenPeriod.availabilityRate == null ? "" : percent(chosenPeriod.availabilityRate)],
+              ["Deliveries", chosenPeriod.completionsSf == null ? "" : compactSf(chosenPeriod.completionsSf)],
+              ["Leasing deals", chosenPeriod.transactions == null ? "" : chosenPeriod.transactions.toLocaleString()],
+              ["Sale price", chosenPeriod.salePricePsf == null ? "" : price(chosenPeriod.salePricePsf)],
+              ["Cap rate", chosenPeriod.capRate == null ? "" : percent(chosenPeriod.capRate)],
+              ["Sales activity", chosenPeriod.salesSf == null ? "" : compactSf(chosenPeriod.salesSf)],
+            ]
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
               <div key={label} className="shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 shadow-card transition duration-150 hover:border-deep">
                 <span className="text-[11px] text-muted">{label}</span>
                 <span className="ml-2 text-sm font-semibold tabular-nums text-ink">{value}</span>
@@ -445,16 +449,7 @@ function Overview({
   qoqOf: (field: MarketField) => number | null;
   yoyOf: (field: MarketField) => number | null;
 }) {
-  const notes = [
-    current.vacancyRate != null
-      ? `Vacancy is ${percent(current.vacancyRate)}${move(qoqOf("vacancyRate"), yoyOf("vacancyRate"))}.`
-      : "",
-    current.absorptionSf != null
-      ? `Net absorption is ${compactSf(current.absorptionSf)}${current.absorptionSf < 0 ? ", so occupied space gave some back." : "."}`
-      : "",
-    current.leasingSf != null ? `Leasing activity is ${compactSf(current.leasingSf)}${move(qoqOf("leasingSf"), yoyOf("leasingSf"))}.` : "",
-    current.askingRent != null ? `Asking rent is ${rent(current.askingRent)} NNN${move(qoqOf("askingRent"), yoyOf("askingRent"))}.` : "",
-  ].filter(Boolean);
+  const story = quarterStory(current, priorQ, priorY);
   const history: [string, MarketField, (value: number | null) => string][] = [
     ["Inventory", "inventorySf", fullSf],
     ["Vacancy", "vacancyRate", (value) => percent(value)],
@@ -510,14 +505,17 @@ function Overview({
       </div>
       <aside className="grid content-start gap-4 lg:col-span-2">
         <section className="rounded-xl border border-line bg-surface p-4 shadow-card">
-          <h2 className="text-sm font-semibold text-ink">Market trends</h2>
-          <ul className="mt-3 grid gap-3">
-            {notes.map((note) => (
-              <li key={note} className="text-sm leading-6 text-ink-soft">
-                {note}
-              </li>
+          <h2 className="text-sm font-semibold text-ink">This quarter</h2>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <StoryStat label="Vacancy vs last quarter" value={pointChange(current.vacancyRate, priorQ?.vacancyRate ?? null)} />
+            <StoryStat label="Net absorption" value={current.absorptionSf == null ? "—" : compactSf(current.absorptionSf)} />
+            <StoryStat label="Rent vs a year ago" value={rentChange(current.askingRent, priorY?.askingRent ?? null)} />
+          </div>
+          <div className="mt-3 grid gap-2">
+            {story.map((line) => (
+              <p key={line} className="text-sm leading-6 text-ink-soft">{line}</p>
             ))}
-          </ul>
+          </div>
         </section>
         {current.notes ? (
           <section className="rounded-xl border border-line bg-blush p-4 shadow-card">
@@ -530,9 +528,64 @@ function Overview({
   );
 }
 
-function move(qoq: number | null, yoy: number | null) {
-  const bits = [deltaText(qoq) ? `${deltaText(qoq)} QoQ` : "", deltaText(yoy) ? `${deltaText(yoy)} YoY` : ""].filter(Boolean);
-  return bits.length ? ` (${bits.join(", ")})` : "";
+function pointChange(current: number | null, prior: number | null) {
+  if (current == null || prior == null) return "—";
+  const diff = current - prior;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${diff.toFixed(1)} pts`;
+}
+
+function rentChange(current: number | null, prior: number | null) {
+  if (current == null || prior == null) return "—";
+  const diff = current - prior;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}$${diff.toFixed(2)}`;
+}
+
+function StoryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-paper px-2 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className="mt-1 text-sm font-semibold tabular-nums text-ink">{value}</p>
+    </div>
+  );
+}
+
+function quarterStory(current: MarketPoint, priorQ: MarketPoint | null, priorY: MarketPoint | null) {
+  const lines: string[] = [];
+  if (current.vacancyRate != null) {
+    const prior = priorQ?.vacancyRate;
+    const verb = prior == null ? "is" : current.vacancyRate > prior + 0.05 ? "rose to" : current.vacancyRate < prior - 0.05 ? "eased to" : "held at";
+    const fromQ = prior == null ? "" : ` from ${percent(prior)} last quarter`;
+    const fromY = priorY?.vacancyRate == null ? "" : `${fromQ ? " and" : " from"} ${percent(priorY.vacancyRate)} a year ago`;
+    lines.push(`Vacancy ${verb} ${percent(current.vacancyRate)}${fromQ}${fromY}.`);
+  }
+  if (current.absorptionSf != null) {
+    const amount = compactSf(Math.abs(current.absorptionSf));
+    lines.push(
+      current.absorptionSf < 0
+        ? `Tenants gave back ${amount}.`
+        : current.absorptionSf > 0
+          ? `The quarter absorbed ${amount}.`
+          : "Net absorption was flat.",
+    );
+  }
+  if (current.leasingSf != null) {
+    const deals = current.transactions != null ? ` across ${current.transactions.toLocaleString()} deals` : "";
+    lines.push(`Leasing activity was ${compactSf(current.leasingSf)}${deals}.`);
+  }
+  if (current.askingRent != null) {
+    const fromQ = priorQ?.askingRent == null ? "" : ` from ${rent(priorQ.askingRent)} last quarter`;
+    const fromY = priorY?.askingRent == null ? "" : `${fromQ ? " and" : " from"} ${rent(priorY.askingRent)} a year ago`;
+    lines.push(`Asking rent is ${rent(current.askingRent)} NNN${fromQ}${fromY}.`);
+  }
+  if (current.completionsSf != null || current.underConstructionSf != null) {
+    const delivered = current.completionsSf != null ? `${compactSf(current.completionsSf)} was delivered` : "";
+    const pipeline = current.underConstructionSf != null ? `${compactSf(current.underConstructionSf)} is still under construction` : "";
+    const sentence = [delivered, pipeline].filter(Boolean).join(", and ");
+    lines.push(`${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`);
+  }
+  return lines;
 }
 
 function Places({ places }: { places: MarketPoint[] }) {

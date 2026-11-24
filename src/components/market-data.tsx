@@ -138,10 +138,6 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
       setMessage("Choose a year and a quarter from 1 to 4.");
       return;
     }
-    if (clashes.length && !replace) {
-      setMessage(clashes.length === 1 ? "That quarter is already saved. Check replace only if you mean to overwrite it." : `${clashes.length} of these quarters are already saved. Check replace only if you mean to overwrite them.`);
-      return;
-    }
     setBusy(true);
     const result = await importMarketPoints({ data: { rows: ready, replace } }).catch(() => ({
       ok: false as const,
@@ -227,12 +223,13 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
               </dl>
             ) : (
               <ul className="mt-4 grid gap-2">
-                {ready.map((row) => (
+                {ready.slice(0, 8).map((row) => (
                   <li key={`${row.market}-${row.city}-${row.year}-${row.quarter}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paper px-3 py-2 text-sm">
                     <span className="font-semibold text-ink">Q{row.quarter} {row.year} · {row.city || row.market}</span>
                     <span className="tabular-nums text-muted">{row.vacancyRate == null ? "—" : `${row.vacancyRate}%`} vacancy · {row.askingRent == null ? "—" : `$${row.askingRent}`}</span>
                   </li>
                 ))}
+                {ready.length > 8 ? <li className="px-3 text-sm text-muted">and {ready.length - 8} more quarters</li> : null}
               </ul>
             )}
             <div className={`mt-4 grid gap-3 sm:grid-cols-2 ${dated ? "" : "lg:grid-cols-4"}`}>
@@ -281,7 +278,7 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
                 Replace the {clashes.length === 1 ? "quarter" : "quarters"} already saved
               </label>
             ) : null}
-            <button type="button" disabled={busy || (clashes.length > 0 && !replace)} onClick={() => void saveQuarter()} className="mt-3 h-10 rounded-md bg-deep px-4 text-sm font-semibold text-white disabled:opacity-60">
+            <button type="button" disabled={busy} onClick={() => void saveQuarter()} className="mt-3 h-10 rounded-md bg-deep px-4 text-sm font-semibold text-white disabled:opacity-60">
               {clashes.length && replace ? `Replace ${clashes.length === 1 ? "this quarter" : "these quarters"}` : `Save ${ready.length === 1 ? "this quarter" : `${ready.length} quarters`}`}
             </button>
           </>

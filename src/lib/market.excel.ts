@@ -56,6 +56,19 @@ const HEADERS: Record<string, keyof MarketInput | "period"> = {
   availablesf: "availableSf",
   availablesftotal: "availableSf",
   notes: "notes",
+  inventorybldgs: "buildings",
+  inventorybuildings: "buildings",
+  vacantsftotal: "vacantSf",
+  vacantsfsublet: "subletSf",
+  vacantpercenttotal: "vacancyRate",
+  totalavailablesftotal: "availableSf",
+  totalavailablepercenttotal: "availabilityRate",
+  netabsorptionsftotal: "absorptionSf",
+  leasingactivitysftotal: "leasingSf",
+  leasingactivitydealstotal: "transactions",
+  deliveriessf: "completionsSf",
+  nnnrentoverall: "askingRent",
+  nnnrentdirect: "directRent",
 };
 
 function headerKey(value: unknown) {
@@ -186,6 +199,44 @@ export function parseMarketSheet(buffer: ArrayBuffer): { rows: MarketInput[]; er
   }
   if (!rows.length && !errors.length) errors.push("No data rows were found under the header.");
   return { rows, errors: errors.slice(0, 8) };
+}
+
+export function parsePeriodHistory(buffer: ArrayBuffer): MarketInput[] {
+  const book = XLSX.read(buffer, { type: "array" });
+  const name = book.SheetNames[0];
+  if (!name) return [];
+  const sheet = book.Sheets[name];
+  if (!sheet) return [];
+  const grid = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, raw: true, defval: null });
+  const headerIndex = grid.findIndex((row) => row.some((cell) => headerKey(cell) === "period"));
+  if (headerIndex < 0) return [];
+  const headers = (grid[headerIndex] ?? []).map((cell) => {
+    const key = headerKey(cell);
+    return { field: HEADERS[key] ?? "", percent: key.includes("percent") };
+  });
+  const rows: MarketInput[] = [];
+  for (let index = headerIndex + 1; index < grid.length && rows.length < 2000; index += 1) {
+    const line = grid[index] ?? [];
+    if (line.every((cell) => cell == null || String(cell).trim() === "")) continue;
+    const draft = blank();
+    const periodColumn = headers.findIndex((header) => header.field === "period");
+    const period = periodColumn >= 0 ? periodOf(line[periodColumn]) : null;
+    headers.forEach((header, column) => {
+      if (!header.field || header.field === "period") return;
+      const value = line[column];
+      const amount = numberOf(value);
+      if (header.percent && amount != null && Math.abs(amount) <= 1) {
+        assignCell(draft, header.field, Math.round(amount * 10000) / 100);
+        return;
+      }
+      assignCell(draft, header.field, value);
+    });
+    if (!period || !hasFigures(draft)) continue;
+    draft.year = period.year;
+    draft.quarter = period.quarter;
+    rows.push(draft);
+  }
+  return rows;
 }
 
 export const MARKET_TEMPLATE = [
