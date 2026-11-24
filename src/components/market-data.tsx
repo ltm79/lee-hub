@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { deleteMarketPoint, importMarketPoints, saveMarketPoint } from "@/lib/market.functions";
-import { MARKET_TEMPLATE, asQuarterTotal, parseMarketSheet } from "@/lib/market.excel";
+import { MARKET_TEMPLATE, asQuarterTotal } from "@/lib/market.excel";
 import { readMarketUpload } from "@/lib/market.upload";
 import { SUBMARKETS } from "@/lib/market.places";
 import { periodLabel } from "@/lib/market.metrics";
@@ -42,9 +42,9 @@ function fromPoint(point: MarketPoint): MarketInput {
 export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged: () => void }) {
   const now = new Date();
   const [draft, setDraft] = useState<MarketInput | null>(null);
-  const [preview, setPreview] = useState<MarketInput[]>([]);
   const [uploadRows, setUploadRows] = useState<MarketInput[]>([]);
   const [dated, setDated] = useState(false);
+  const [fromBulk, setFromBulk] = useState(false);
   const [submarket, setSubmarket] = useState<string>(SUBMARKETS[1]);
   const [city, setCity] = useState("");
   const [year, setYear] = useState(now.getFullYear());
@@ -103,6 +103,16 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
   }
 
   async function readQuarterFile(file: File) {
+    setFromBulk(false);
+    await loadUpload(file);
+  }
+
+  async function readFile(file: File) {
+    setFromBulk(true);
+    await loadUpload(file);
+  }
+
+  async function loadUpload(file: File) {
     setMessage("");
     setUploadRows([]);
     setDated(false);
@@ -156,28 +166,6 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
     onChanged();
   }
 
-  async function readFile(file: File) {
-    setMessage("");
-    const parsed = parseMarketSheet(await file.arrayBuffer());
-    setPreview(parsed.rows);
-    setMessage(parsed.errors[0] ?? `${parsed.rows.length} rows ready. Quarters already saved are left as-is unless you check replace.`);
-  }
-
-  async function commit() {
-    setBusy(true);
-    const result = await importMarketPoints({ data: { rows: preview, replace } }).catch(() => ({ ok: false as const, error: "The sheet could not be imported." }));
-    setBusy(false);
-    if (!result.ok) {
-      setMessage(result.error);
-      return;
-    }
-    setPreview([]);
-    setReplace(false);
-    const skipped = result.skipped ? ` ${result.skipped} already saved ${result.skipped === 1 ? "quarter was" : "quarters were"} left as-is.` : "";
-    setMessage(`Imported ${result.saved} ${result.saved === 1 ? "row" : "rows"}.${skipped}`);
-    onChanged();
-  }
-
   function downloadTemplate() {
     const url = URL.createObjectURL(new Blob([MARKET_TEMPLATE], { type: "text/csv" }));
     const link = document.createElement("a");
@@ -209,8 +197,8 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
             />
           </label>
         </div>
-        {message ? <p className="mt-3 text-sm text-ink-soft">{message}</p> : null}
-        {uploadRows.length ? (
+        {message && !fromBulk ? <p className="mt-3 text-sm text-ink-soft">{message}</p> : null}
+        {uploadRows.length && !fromBulk ? (
           <>
             {!dated && uploadRows[0] ? (
               <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -287,7 +275,7 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">Bulk sheet</h2>
         <p className="mt-2 max-w-3xl text-sm text-muted">
-          Use Excel or CSV. Rates are percents (5.8, not 0.058) and rent is dollars per square foot (1.40). Leave City blank for the submarket total. Quarters already saved stay unless you check replace.
+          Choose the Excel file. If it does not name a submarket, tag it below, then press Save. Quarters already saved stay unless you check replace.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="inline-flex h-10 cursor-pointer items-center rounded-md bg-ink px-4 text-sm font-semibold text-white">
@@ -306,22 +294,55 @@ export function MarketData({ rows, onChanged }: { rows: MarketPoint[]; onChanged
           <button type="button" onClick={downloadTemplate} className="h-10 rounded-md border border-line px-4 text-sm font-semibold">
             Download template
           </button>
-          {preview.length ? (
-            <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-ink">
-              <input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} className="size-5 accent-crimson" />
-              Replace quarters already saved
-            </label>
-          ) : null}
-          {preview.length ? (
-            <button type="button" disabled={busy} onClick={() => void commit()} className="h-10 rounded-md bg-deep px-4 text-sm font-semibold text-white disabled:opacity-60">
-              Import {preview.length} rows
-            </button>
-          ) : null}
           <button type="button" onClick={() => setDraft(emptyPoint(rows[0]?.market ?? "San Gabriel Valley"))} className="h-10 rounded-md border border-line px-4 text-sm font-semibold">
             Add a quarter
           </button>
         </div>
-        {message ? <p className="mt-3 text-sm text-ink-soft">{message}</p> : null}
+        {message && fromBulk ? <p className="mt-3 text-sm text-ink-soft">{message}</p> : null}
+        {uploadRows.length && fromBulk ? (
+          <>
+            <ul className="mt-4 grid gap-2">
+              {ready.slice(0, 8).map((row) => (
+                <li key={`${row.market}-${row.city}-${row.year}-${row.quarter}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paper px-3 py-2 text-sm">
+                  <span className="font-semibold text-ink">Q{row.quarter} {row.year}{row.city || row.market ? ` · ${row.city || row.market}` : ""}</span>
+                  <span className="tabular-nums text-muted">{row.vacancyRate == null ? "—" : `${row.vacancyRate}%`} vacancy · {row.askingRent == null ? "—" : `$${row.askingRent}`}</span>
+                </li>
+              ))}
+              {ready.length > 8 ? <li className="px-3 text-sm text-muted">and {ready.length - 8} more quarters</li> : null}
+            </ul>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {fileHasPlaces ? null : (
+                <label className="grid gap-1 text-xs font-medium text-muted">
+                  Tag to submarket
+                  <select value={submarket} onChange={(event) => { setSubmarket(event.target.value); setReplace(false); }} className="h-10 rounded-md border border-line bg-surface px-3 text-sm text-ink">
+                    {SUBMARKETS.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {uploadRows.some((row) => row.city) ? null : (
+                <label className="grid gap-1 text-xs font-medium text-muted">
+                  City, optional
+                  <input value={city} onChange={(event) => { setCity(event.target.value); setReplace(false); }} placeholder="Blank saves the submarket total" className="h-10 rounded-md border border-line px-3 text-sm text-ink" />
+                </label>
+              )}
+            </div>
+            <p className="mt-3 text-sm text-ink-soft">
+              {`${ready.length} ${ready.length === 1 ? "quarter" : "quarters"} will be saved to ${city.trim() || submarket}.`}
+              {clashes.length ? ` ${clashes.length === 1 ? "One quarter is" : `${clashes.length} quarters are`} already saved and will be left as-is unless you check replace.` : ""}
+            </p>
+            {clashes.length ? (
+              <label className="mt-3 flex min-h-11 items-center gap-3 text-sm font-medium text-ink">
+                <input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} className="size-5 accent-crimson" />
+                Replace the {clashes.length === 1 ? "quarter" : "quarters"} already saved
+              </label>
+            ) : null}
+            <button type="button" disabled={busy} onClick={() => void saveQuarter()} className="mt-3 h-10 rounded-md bg-deep px-4 text-sm font-semibold text-white disabled:opacity-60">
+              {`Save ${ready.length} ${ready.length === 1 ? "quarter" : "quarters"}`}
+            </button>
+          </>
+        ) : null}
       </section>
 
       {draft ? (
