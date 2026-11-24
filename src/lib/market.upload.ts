@@ -1,14 +1,19 @@
-import { chooseUploadRow, metricsFromGrid, metricsFromText, parseMarketSheet } from "@/lib/market.excel";
+import { hasFigures, metricsByQuarter, metricsFromGrid, metricsFromText, parseMarketSheet, parseWideQuarters } from "@/lib/market.excel";
 import type { MarketInput } from "@/lib/market.types";
 
 export type UploadRead = {
-  row: MarketInput | null;
+  rows: MarketInput[];
   note: string;
+  dated: boolean;
 };
 
-function filePeriod(row: MarketInput | null) {
-  if (!row || row.year < 1990 || row.quarter < 1 || row.quarter > 4) return "";
-  return `${row.year} Q${row.quarter}`;
+function labelOf(row: MarketInput) {
+  return `Q${row.quarter} ${row.year}`;
+}
+
+function summary(rows: MarketInput[]) {
+  const labels = [...new Set(rows.map(labelOf))];
+  return labels.length === 1 ? labels[0] ?? "" : labels.join(", ");
 }
 
 export async function readMarketUpload(file: File): Promise<UploadRead> {
@@ -16,16 +21,43 @@ export async function readMarketUpload(file: File): Promise<UploadRead> {
   const pdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
   if (pdf) {
     const text = await textFromPdf(buffer);
+    const many = metricsByQuarter(text);
+    if (many.length >= 2) {
+      return { rows: many.map((row) => ({ ...row, source: "pdf" })), dated: true, note: `Found ${summary(many)} in the file.` };
+    }
     const parsed = metricsFromText(text);
-    if (!parsed) return { row: null, note: "No figures were found in that PDF. Use the Excel template, or type the quarter." };
-    const seen = filePeriod(parsed);
-    return { row: { ...parsed, source: "pdf" }, note: seen ? `The file looks like ${seen}. Choose the quarter to save.` : "Choose the submarket, year, and quarter for this file." };
+    if (!parsed || !hasFigures(parsed)) return { rows: [], dated: false, note: "No figures were found in that PDF. Use the Excel template, or type the quarter." };
+    const dated = parsed.year >= 1990 && parsed.quarter >= 1 && parsed.quarter <= 4;
+    return {
+      rows: [{ ...parsed, source: "pdf" }],
+      dated,
+      note: dated ? `The file is ${labelOf(parsed)}.` : "No quarter was labeled in the file. Choose the year and quarter.",
+    };
   }
-  const sheet = parseMarketSheet(buffer);
-  const picked = chooseUploadRow(sheet.rows, "") ?? metricsFromGrid(buffer);
-  if (!picked) return { row: null, note: sheet.errors[0] ?? "No figures were found in that file." };
-  const seen = filePeriod(picked);
-  return { row: { ...picked, source: "excel" }, note: seen ? `The file looks like ${seen}. Choose the quarter to save.` : "Choose the submarket, year, and quarter for this file." };
+  const sheet = parseMarketSheet(buffer).rows.filter(hasFigures);
+  const wide = parseWideQuarters(buffer);
+  const datedRows = sheet.filter((row) => row.year >= 1990 && row.quarter >= 1 && row.quarter <= 4);
+  const periods = new Set(datedRows.map((row) => `${row.year}-${row.quarter}`));
+  if (datedRows.length >= 2 || periods.size >= 2) {
+    return { rows: datedRows.map((row) => ({ ...row, source: "excel" })), dated: true, note: `Found ${summary(datedRows)} in the file.` };
+  }
+  if (wide.length >= 2) {
+    return { rows: wide.map((row) => ({ ...row, source: "excel" })), dated: true, note: `Found ${summary(wide)} across the columns.` };
+  }
+  if (datedRows.length === 1) {
+    const row = datedRows[0];
+    return row
+      ? { rows: [{ ...row, source: "excel" }], dated: true, note: `The file is ${labelOf(row)}.` }
+      : { rows: [], dated: false, note: "No figures were found in that file." };
+  }
+  const picked = metricsFromGrid(buffer);
+  if (!picked || !hasFigures(picked)) return { rows: [], dated: false, note: "No figures were found in that file." };
+  const dated = picked.year >= 1990 && picked.quarter >= 1 && picked.quarter <= 4;
+  return {
+    rows: [{ ...picked, source: "excel" }],
+    dated,
+    note: dated ? `The file is ${labelOf(picked)}.` : "No quarter was labeled in the file. Choose the year and quarter.",
+  };
 }
 
 async function textFromPdf(buffer: ArrayBuffer) {

@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { MarketInput } from "@/lib/market.types";
+import { MARKET_FIELDS, type MarketInput } from "@/lib/market.types";
 
 const HEADERS: Record<string, keyof MarketInput | "period"> = {
   market: "market",
@@ -77,14 +77,23 @@ export function numberOf(value: unknown): number | null {
 }
 
 function periodOf(value: unknown): { year: number; quarter: number } | null {
-  const text = String(value ?? "").trim();
+  const text = String(value ?? "")
+    .trim()
+    .replace(/[’']/g, "");
   const yearFirst = /^(\d{4})\s*[- ]?\s*q([1-4])$/i.exec(text);
   if (yearFirst) return { year: Number(yearFirst[1]), quarter: Number(yearFirst[2]) };
   const quarterFirst = /^q([1-4])\s*[- ]?\s*(\d{4})$/i.exec(text);
   if (quarterFirst) return { year: Number(quarterFirst[2]), quarter: Number(quarterFirst[1]) };
-  const compact = /^([1-4])q\s*(\d{4})$/i.exec(text);
+  const compact = /^([1-4])q\s*[- ]?\s*(\d{4})$/i.exec(text);
   if (compact) return { year: Number(compact[2]), quarter: Number(compact[1]) };
+  const short = /^q([1-4])\s*[- ]?\s*(\d{2})$/i.exec(text);
+  if (short) return { year: shortYear(short[2]), quarter: Number(short[1]) };
   return null;
+}
+
+function shortYear(value: string) {
+  const year = Number(value);
+  return year <= 50 ? 2000 + year : 1900 + year;
 }
 
 function assignCell(draft: MarketInput, field: keyof MarketInput, value: unknown) {
@@ -287,6 +296,85 @@ export function chooseUploadRow(rows: MarketInput[], submarket: string) {
     rows[0] ??
     null
   );
+}
+
+export function hasFigures(row: MarketInput) {
+  return MARKET_FIELDS.some(([key]) => row[key] != null);
+}
+
+export function parseWideQuarters(buffer: ArrayBuffer): MarketInput[] {
+  const book = XLSX.read(buffer, { type: "array" });
+  const name = book.SheetNames[0];
+  if (!name) return [];
+  const sheet = book.Sheets[name];
+  if (!sheet) return [];
+  const grid = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, raw: true, defval: null });
+  let headerIndex = -1;
+  let columns: { index: number; year: number; quarter: number }[] = [];
+  for (let index = 0; index < Math.min(grid.length, 30); index += 1) {
+    const found: { index: number; year: number; quarter: number }[] = [];
+    (grid[index] ?? []).forEach((cell, column) => {
+      const period = periodOf(cell);
+      if (period) found.push({ index: column, year: period.year, quarter: period.quarter });
+    });
+    if (found.length >= 2) {
+      headerIndex = index;
+      columns = found;
+      break;
+    }
+  }
+  if (headerIndex < 0) return [];
+  const drafts = columns.map((column) => ({ ...blank(), year: column.year, quarter: column.quarter }));
+  for (let index = headerIndex + 1; index < grid.length; index += 1) {
+    const line = grid[index] ?? [];
+    let label = "";
+    for (let column = 0; column < line.length; column += 1) {
+      if (columns.some((item) => item.index === column)) continue;
+      const text = String(line[column] ?? "").trim();
+      if (text) {
+        label = text;
+        break;
+      }
+    }
+    const field = HEADERS[headerKey(label)];
+    if (!field || field === "market" || field === "submarket" || field === "city" || field === "period") continue;
+    columns.forEach((column, slot) => {
+      const draft = drafts[slot];
+      if (draft) assignCell(draft, field, line[column.index]);
+    });
+  }
+  return drafts.filter(hasFigures);
+}
+
+const PERIOD_MARK = /\b(20\d{2})\s*[- ]?q([1-4])\b|\bq([1-4])\s*[- ]?(20\d{2})\b|\b([1-4])q\s*(20\d{2})\b/gi;
+
+export function metricsByQuarter(text: string): MarketInput[] {
+  const marks: { index: number; year: number; quarter: number }[] = [];
+  for (const match of text.matchAll(PERIOD_MARK)) {
+    const year = Number(match[1] || match[4] || match[6]);
+    const quarter = Number(match[2] || match[3] || match[5]);
+    const index = match.index ?? 0;
+    const prior = marks[marks.length - 1];
+    if (prior && index - prior.index < 40) continue;
+    marks.push({ index, year, quarter });
+  }
+  if (marks.length < 2) return [];
+  const kept = new Map<string, MarketInput>();
+  marks.forEach((mark, index) => {
+    const next = marks[index + 1]?.index ?? text.length;
+    const slice = text.slice(mark.index, next);
+    if (slice.length < 24) return;
+    const draft = metricsFromText(slice);
+    if (!draft || !hasFigures(draft)) return;
+    draft.year = mark.year;
+    draft.quarter = mark.quarter;
+    const key = `${mark.year}-${mark.quarter}`;
+    const prior = kept.get(key);
+    const score = MARKET_FIELDS.filter(([field]) => draft[field] != null).length;
+    const priorScore = prior ? MARKET_FIELDS.filter(([field]) => prior[field] != null).length : 0;
+    if (!prior || score >= priorScore) kept.set(key, draft);
+  });
+  return [...kept.values()].sort((a, b) => a.year - b.year || a.quarter - b.quarter);
 }
 
 export function asQuarterTotal(
